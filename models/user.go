@@ -14,6 +14,7 @@ const (
 	RoleEmployee Role = "employee"
 	RoleManager  Role = "manager"
 	RoleHead     Role = "head"
+	RoleHR       Role = "hr"
 )
 
 type TaskStatus string
@@ -36,10 +37,10 @@ const (
 
 type User struct {
 	gorm.Model
-	Username   string `gorm:"unique;not null;index"`
-	Password   string `gorm:"not null"`
-	Role       Role   `gorm:"not null;index"`
-	Department string `gorm:"not null;index"`
+	Username   string `gorm:"unique;not null;index;type:varchar(255) COLLATE \"default\""`
+	Password   string `gorm:"not null;type:varchar(255)"`
+	Role       Role   `gorm:"not null;index;type:varchar(50)"`
+	Department string `gorm:"not null;index;type:varchar(255) COLLATE \"default\""`
 
 	// Relationships
 	Tasks              []Task              `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
@@ -53,13 +54,15 @@ type User struct {
 
 type Task struct {
 	gorm.Model
-	Title       string     `gorm:"not null;index"`
-	Description string     `gorm:"not null"`
-	Status      TaskStatus `gorm:"not null;default:'pending';index"`
+	Title       string     `gorm:"not null;index;type:varchar(500) COLLATE \"default\""`
+	Description string     `gorm:"not null;type:text"`
+	Status      TaskStatus `gorm:"not null;default:'pending';index;type:varchar(50)"`
 	UserID      uint       `gorm:"not null;index"`
 	ProjectID   *uint      `gorm:"index"` // Optional: task can belong to a project
 	AssignedAt  time.Time  `gorm:"not null;index"`
-	DueDate     *time.Time `gorm:"index"` // Optional due date
+	StartTime   *time.Time `gorm:"index"` // When task should start
+	EndTime     *time.Time `gorm:"index"` // When task should end
+	DueDate     *time.Time `gorm:"index"` // Optional due date (legacy, can be removed later)
 
 	// Relationships
 	User    User     `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
@@ -68,16 +71,19 @@ type Task struct {
 
 type CollaborativeTask struct {
 	gorm.Model
-	Title       string     `gorm:"not null;index"`
-	Description string     `gorm:"not null"`
-	Status      TaskStatus `gorm:"not null;default:'pending';index"`
-	LeadUserID  uint       `gorm:"not null;index"` // Main person responsible
-	ProjectID   *uint      `gorm:"index"`          // Optional: collaborative task can belong to a project
-	AssignedAt  time.Time  `gorm:"not null;index"`
-	DueDate     *time.Time `gorm:"index"`                  // Optional due date
-	Priority    string     `gorm:"default:'medium';index"` // high, medium, low
-	Progress    int        `gorm:"default:0;index"`        // 0-100 percentage
-	Complexity  string     `gorm:"default:'medium';index"` // simple, medium, complex
+	Title           string     `gorm:"not null;index;type:varchar(500) COLLATE \"default\""`
+	Description     string     `gorm:"not null;type:text"`
+	Status          TaskStatus `gorm:"not null;default:'pending';index;type:varchar(50)"`
+	LeadUserID      uint       `gorm:"not null;index"` // Main person responsible
+	ProjectID       *uint      `gorm:"index"`          // Optional: collaborative task can belong to a project
+	AssignedAt      time.Time  `gorm:"not null;index"`
+	StartTime       *time.Time `gorm:"index"`                                   // When task should start
+	EndTime         *time.Time `gorm:"index"`                                   // When task should end
+	DueDate         *time.Time `gorm:"index"`                                   // Optional due date (legacy, can be removed later)
+	Priority        string     `gorm:"default:'medium';index;type:varchar(50)"` // high, medium, low
+	Progress        int        `gorm:"default:0;index"`                         // 0-100 percentage
+	Complexity      string     `gorm:"default:'medium';index;type:varchar(50)"` // simple, medium, complex
+	MaxParticipants int        `gorm:"default:5;index"`                         // Maximum number of participants
 
 	// Relationships
 	LeadUser     User                           `gorm:"foreignKey:LeadUserID;constraint:OnDelete:SET NULL"`
@@ -90,11 +96,11 @@ type CollaborativeTaskParticipant struct {
 	gorm.Model
 	CollaborativeTaskID uint       `gorm:"not null;index"`
 	UserID              uint       `gorm:"not null;index"`
-	Role                string     `gorm:"not null;default:'contributor';index"` // lead, contributor, reviewer, observer
-	Status              string     `gorm:"not null;default:'active';index"`      // active, inactive, completed
+	Role                string     `gorm:"not null;default:'contributor';index;type:varchar(100)"` // lead, contributor, reviewer, observer
+	Status              string     `gorm:"not null;default:'active';index;type:varchar(50)"`       // active, inactive, completed
 	AssignedAt          time.Time  `gorm:"not null;index"`
 	CompletedAt         *time.Time `gorm:"index"`
-	Contribution        string     `gorm:"index"` // Description of their contribution
+	Contribution        string     `gorm:"index;type:text"` // Description of their contribution
 
 	// Relationships
 	CollaborativeTask CollaborativeTask `gorm:"foreignKey:CollaborativeTaskID;constraint:OnDelete:CASCADE"`
@@ -103,9 +109,9 @@ type CollaborativeTaskParticipant struct {
 
 type Project struct {
 	gorm.Model
-	Title       string        `gorm:"not null;index"`
-	Description string        `gorm:"not null"`
-	Status      ProjectStatus `gorm:"not null;default:'active';index"`
+	Title       string        `gorm:"not null;index;type:varchar(500) COLLATE \"default\""`
+	Description string        `gorm:"not null;type:text"`
+	Status      ProjectStatus `gorm:"not null;default:'active';index;type:varchar(50)"`
 	CreatedBy   uint          `gorm:"not null;index"` // Who created the project
 	StartDate   time.Time     `gorm:"not null;index"`
 	EndDate     *time.Time    `gorm:"index"` // Optional end date
@@ -122,7 +128,7 @@ type UserProject struct {
 	UserID    uint      `gorm:"primaryKey;index"`
 	ProjectID uint      `gorm:"primaryKey;index"`
 	JoinedAt  time.Time `gorm:"not null;index"`
-	Role      string    `gorm:"not null;default:'member';index"` // member, lead, contributor, etc.
+	Role      string    `gorm:"not null;default:'member';index;type:varchar(100)"` // member, lead, contributor, etc.
 
 	// Relationships
 	User    User    `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`

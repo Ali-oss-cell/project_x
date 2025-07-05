@@ -10,7 +10,7 @@ import (
 func SetupAuthRoutes(r *gin.Engine, db *gorm.DB) {
 	authHandler := handlers.NewAuthHandler(db)
 
-	authGroup := r.Group("/auth")
+	authGroup := r.Group("/api/auth")
 	{
 		authGroup.POST("/login", authHandler.Login)
 	}

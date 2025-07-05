@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project X API Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .response {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 10px;
+            white-space: pre-wrap;
+            font-family: monospace;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            border-bottom-color: #007bff;
+            color: #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .ws-status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        .ws-connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .ws-disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <h1>Project X API Test Client</h1>
+    
+    <div class="container">
+        <div class="form-group">
+            <label for="baseUrl">Base URL:</label>
+            <input type="text" id="baseUrl" value="https://your-app.railway.app" placeholder="Enter your Railway URL">
+        </div>
+        <div class="form-group">
+            <label for="authToken">Auth Token:</label>
+            <input type="text" id="authToken" placeholder="JWT token (get from login)">
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab active" onclick="showTab('auth')">Authentication</button>
+        <button class="tab" onclick="showTab('tasks')">Tasks</button>
+        <button class="tab" onclick="showTab('projects')">Projects</button>
+        <button class="tab" onclick="showTab('chat')">Chat</button>
+        <button class="tab" onclick="showTab('hr')">HR Problems</button>
+        <button class="tab" onclick="showTab('websocket')">WebSocket</button>
+    </div>
+
+    <!-- Authentication Tab -->
+    <div id="auth" class="tab-content active">
+        <div class="container">
+            <h2>Authentication</h2>
+            
+            <h3>Health Check</h3>
+            <button onclick="healthCheck()">Check Health</button>
+            
+            <h3>Register User</h3>
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="regUsername" value="testuser">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="regPassword" value="testpass123">
+            </div>
+            <div class="form-group">
+                <label>Role:</label>
+                <select id="regRole">
+                    <option value="employee">Employee</option>
+                    <option value="manager">Manager</option>
+                    <option value="head">Head</option>
+                    <option value="admin">Admin</option>
+                    <option value="hr">HR</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Department:</label>
+                <input type="text" id="regDepartment" value="Engineering">
+            </div>
+            <button onclick="registerUser()">Register</button>
+            
+            <h3>Login</h3>
+            <div class="form-group">
+                <label>Username:</label>
+                <input type="text" id="loginUsername" value="testuser">
+            </div>
+            <div class="form-group">
+                <label>Password:</label>
+                <input type="password" id="loginPassword" value="testpass123">
+            </div>
+            <button onclick="loginUser()">Login</button>
+            
+            <div id="authResponse" class="response"></div>
+        </div>
+    </div>
+
+    <!-- Tasks Tab -->
+    <div id="tasks" class="tab-content">
+        <div class="container">
+            <h2>Tasks</h2>
+            
+            <h3>Get My Tasks</h3>
+            <button onclick="getMyTasks()">Get Tasks</button>
+            
+            <h3>Create Task</h3>
+            <div class="form-group">
+                <label>Title:</label>
+                <input type="text" id="taskTitle" value="Test Task">
+            </div>
+            <div class="form-group">
+                <label>Description:</label>
+                <textarea id="taskDescription">This is a test task</textarea>
+            </div>
+            <div class="form-group">
+                <label>Due Date:</label>
+                <input type="datetime-local" id="taskDueDate">
+            </div>
+            <button onclick="createTask()">Create Task</button>
+            
+            <div id="tasksResponse" class="response"></div>
+        </div>
+    </div>
+
+    <!-- Projects Tab -->
+    <div id="projects" class="tab-content">
+        <div class="container">
+            <h2>Projects</h2>
+            
+            <h3>Get My Projects</h3>
+            <button onclick="getMyProjects()">Get Projects</button>
+            
+            <h3>Create Project</h3>
+            <div class="form-group">
+                <label>Name:</label>
+                <input type="text" id="projectName" value="Test Project">
+            </div>
+            <div class="form-group">
+                <label>Description:</label>
+                <textarea id="projectDescription">This is a test project</textarea>
+            </div>
+            <button onclick="createProject()">Create Project</button>
+            
+            <div id="projectsResponse" class="response"></div>
+        </div>
+    </div>
+
+    <!-- Chat Tab -->
+    <div id="chat" class="tab-content">
+        <div class="container">
+            <h2>Team Chat</h2>
+            
+            <h3>Get Team Chat</h3>
+            <button onclick="getTeamChat()">Get/Create Team Chat</button>
+            
+            <h3>Get Messages</h3>
+            <div class="form-group">
+                <label>Room ID:</label>
+                <input type="number" id="chatRoomId" value="1">
+            </div>
+            <button onclick="getMessages()">Get Messages</button>
+            
+            <h3>Send Message</h3>
+            <div class="form-group">
+                <label>Room ID:</label>
+                <input type="number" id="sendRoomId" value="1">
+            </div>
+            <div class="form-group">
+                <label>Message:</label>
+                <textarea id="messageContent">Hello team!</textarea>
+            </div>
+            <button onclick="sendMessage()">Send Message</button>
+            
+            <div id="chatResponse" class="response"></div>
+        </div>
+    </div>
+
+    <!-- HR Problems Tab -->
+    <div id="hr" class="tab-content">
+        <div class="container">
+            <h2>HR Problem Reporting</h2>
+            
+            <h3>Get Categories</h3>
+            <button onclick="getHRCategories()">Get Categories</button>
+            
+            <h3>Report Problem</h3>
+            <div class="form-group">
+                <label>Title:</label>
+                <input type="text" id="hrTitle" value="Test HR Issue">
+            </div>
+            <div class="form-group">
+                <label>Description:</label>
+                <textarea id="hrDescription">This is a test HR problem report</textarea>
+            </div>
+            <div class="form-group">
+                <label>Category:</label>
+                <select id="hrCategory">
+                    <option value="harassment">Harassment</option>
+                    <option value="discrimination">Discrimination</option>
+                    <option value="work_environment">Work Environment</option>
+                    <option value="management_issues">Management Issues</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Priority:</label>
+                <select id="hrPriority">
+                    <option value="low">Low</option>
+                    <option value="medium">Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Anonymous:</label>
+                <input type="checkbox" id="hrAnonymous">
+            </div>
+            <button onclick="reportProblem()">Report Problem</button>
+            
+            <div id="hrResponse" class="response"></div>
+        </div>
+    </div>
+
+    <!-- WebSocket Tab -->
+    <div id="websocket" class="tab-content">
+        <div class="container">
+            <h2>WebSocket Chat</h2>
+            
+            <div class="ws-status ws-disconnected" id="wsStatus">Disconnected</div>
+            
+            <h3>Connection</h3>
+            <button onclick="connectWebSocket()">Connect</button>
+            <button onclick="disconnectWebSocket()">Disconnect</button>
+            
+            <h3>Send WebSocket Message</h3>
+            <div class="form-group">
+                <label>Message:</label>
+                <textarea id="wsMessage">Hello via WebSocket!</textarea>
+            </div>
+            <button onclick="sendWebSocketMessage()">Send</button>
+            
+            <h3>WebSocket Messages</h3>
+            <div id="wsMessages" class="response"></div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        
+        function showTab(tabName) {
+            // Hide all tabs
+            const tabs = document.querySelectorAll('.tab-content');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Remove active class from all tab buttons
+            const tabButtons = document.querySelectorAll('.tab');
+            tabButtons.forEach(button => button.classList.remove('active'));
+            
+            // Show selected tab
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked button
+            event.target.classList.add('active');
+        }
+        
+        function getBaseUrl() {
+            return document.getElementById('baseUrl').value;
+        }
+        
+        function getAuthToken() {
+            return document.getElementById('authToken').value;
+        }
+        
+        function makeRequest(method, endpoint, data = null, useAuth = false) {
+            const url = getBaseUrl() + endpoint;
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (useAuth) {
+                const token = getAuthToken();
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+            }
+            
+            const config = {
+                method: method,
+                headers: headers
+            };
+            
+            if (data) {
+                config.body = JSON.stringify(data);
+            }
+            
+            return fetch(url, config);
+        }
+        
+        function displayResponse(elementId, response, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(response, null, 2);
+            element.className = isError ? 'response error' : 'response success';
+        }
+        
+        // Authentication functions
+        async function healthCheck() {
+            try {
+                const response = await makeRequest('GET', '/health');
+                const data = await response.json();
+                displayResponse('authResponse', data, !response.ok);
+            } catch (error) {
+                displayResponse('authResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function registerUser() {
+            const data = {
+                username: document.getElementById('regUsername').value,
+                password: document.getElementById('regPassword').value,
+                role: document.getElementById('regRole').value,
+                department: document.getElementById('regDepartment').value
+            };
+            
+            try {
+                const response = await makeRequest('POST', '/api/auth/register', data);
+                const result = await response.json();
+                displayResponse('authResponse', result, !response.ok);
+            } catch (error) {
+                displayResponse('authResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function loginUser() {
+            const data = {
+                username: document.getElementById('loginUsername').value,
+                password: document.getElementById('loginPassword').value
+            };
+            
+            try {
+                const response = await makeRequest('POST', '/api/auth/login', data);
+                const result = await response.json();
+                
+                if (response.ok && result.token) {
+                    document.getElementById('authToken').value = result.token;
+                }
+                
+                displayResponse('authResponse', result, !response.ok);
+            } catch (error) {
+                displayResponse('authResponse', { error: error.message }, true);
+            }
+        }
+        
+        // Task functions
+        async function getMyTasks() {
+            try {
+                const response = await makeRequest('GET', '/api/tasks', null, true);
+                const data = await response.json();
+                displayResponse('tasksResponse', data, !response.ok);
+            } catch (error) {
+                displayResponse('tasksResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function createTask() {
+            const data = {
+                title: document.getElementById('taskTitle').value,
+                description: document.getElementById('taskDescription').value,
+                due_date: document.getElementById('taskDueDate').value || null
+            };
+            
+            try {
+                const response = await makeRequest('POST', '/api/tasks', data, true);
+                const result = await response.json();
+                displayResponse('tasksResponse', result, !response.ok);
+            } catch (error) {
+                displayResponse('tasksResponse', { error: error.message }, true);
+            }
+        }
+        
+        // Project functions
+        async function getMyProjects() {
+            try {
+                const response = await makeRequest('GET', '/api/projects', null, true);
+                const data = await response.json();
+                displayResponse('projectsResponse', data, !response.ok);
+            } catch (error) {
+                displayResponse('projectsResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function createProject() {
+            const data = {
+                name: document.getElementById('projectName').value,
+                description: document.getElementById('projectDescription').value
+            };
+            
+            try {
+                const response = await makeRequest('POST', '/api/projects', data, true);
+                const result = await response.json();
+                displayResponse('projectsResponse', result, !response.ok);
+            } catch (error) {
+                displayResponse('projectsResponse', { error: error.message }, true);
+            }
+        }
+        
+        // Chat functions
+        async function getTeamChat() {
+            try {
+                const response = await makeRequest('GET', '/api/chat/team-chat', null, true);
+                const data = await response.json();
+                displayResponse('chatResponse', data, !response.ok);
+            } catch (error) {
+                displayResponse('chatResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function getMessages() {
+            const roomId = document.getElementById('chatRoomId').value;
+            try {
+                const response = await makeRequest('GET', `/api/chat/rooms/${roomId}/messages`, null, true);
+                const data = await response.json();
+                displayResponse('chatResponse', data, !response.ok);
+            } catch (error) {
+                displayResponse('chatResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function sendMessage() {
+            const roomId = document.getElementById('sendRoomId').value;
+            const data = {
+                content: document.getElementById('messageContent').value
+            };
+            
+            try {
+                const response = await makeRequest('POST', `/api/chat/rooms/${roomId}/messages`, data, true);
+                const result = await response.json();
+                displayResponse('chatResponse', result, !response.ok);
+            } catch (error) {
+                displayResponse('chatResponse', { error: error.message }, true);
+            }
+        }
+        
+        // HR functions
+        async function getHRCategories() {
+            try {
+                const response = await makeRequest('GET', '/api/hr-problems/categories', null, true);
+                const data = await response.json();
+                displayResponse('hrResponse', data, !response.ok);
+            } catch (error) {
+                displayResponse('hrResponse', { error: error.message }, true);
+            }
+        }
+        
+        async function reportProblem() {
+            const data = {
+                title: document.getElementById('hrTitle').value,
+                description: document.getElementById('hrDescription').value,
+                category: document.getElementById('hrCategory').value,
+                priority: document.getElementById('hrPriority').value,
+                is_anonymous: document.getElementById('hrAnonymous').checked
+            };
+            
+            try {
+                const response = await makeRequest('POST', '/api/hr-problems', data, true);
+                const result = await response.json();
+                displayResponse('hrResponse', result, !response.ok);
+            } catch (error) {
+                displayResponse('hrResponse', { error: error.message }, true);
+            }
+        }
+        
+        // WebSocket functions
+        function connectWebSocket() {
+            const baseUrl = getBaseUrl().replace('https://', 'wss://').replace('http://', 'ws://');
+            const token = getAuthToken();
+            
+            if (!token) {
+                alert('Please login first to get an auth token');
+                return;
+            }
+            
+            ws = new WebSocket(`${baseUrl}/ws/chat?token=${token}`);
+            
+            ws.onopen = function() {
+                document.getElementById('wsStatus').textContent = 'Connected';
+                document.getElementById('wsStatus').className = 'ws-status ws-connected';
+                addWebSocketMessage('Connected to WebSocket');
+            };
+            
+            ws.onmessage = function(event) {
+                addWebSocketMessage('Received: ' + event.data);
+            };
+            
+            ws.onclose = function() {
+                document.getElementById('wsStatus').textContent = 'Disconnected';
+                document.getElementById('wsStatus').className = 'ws-status ws-disconnected';
+                addWebSocketMessage('Disconnected from WebSocket');
+            };
+            
+            ws.onerror = function(error) {
+                addWebSocketMessage('WebSocket error: ' + error);
+            };
+        }
+        
+        function disconnectWebSocket() {
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+        
+        function sendWebSocketMessage() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                alert('WebSocket is not connected');
+                return;
+            }
+            
+            const message = document.getElementById('wsMessage').value;
+            const data = {
+                type: 'message',
+                content: message,
+                room_id: 1
+            };
+            
+            ws.send(JSON.stringify(data));
+            addWebSocketMessage('Sent: ' + message);
+        }
+        
+        function addWebSocketMessage(message) {
+            const messagesDiv = document.getElementById('wsMessages');
+            const timestamp = new Date().toLocaleTimeString();
+            messagesDiv.textContent += `[${timestamp}] ${message}\n`;
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+        
+        // Set default due date to tomorrow
+        document.addEventListener('DOMContentLoaded', function() {
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('taskDueDate').value = tomorrow.toISOString().slice(0, 16);
+        });
+    </script>
+</body>
+</html> 

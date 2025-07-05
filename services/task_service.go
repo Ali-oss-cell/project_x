@@ -9,15 +9,21 @@ import (
 )
 
 type TaskService struct {
-	DB *gorm.DB
+	DB                  *gorm.DB
+	notificationService *NotificationService
 }
 
 func NewTaskService(db *gorm.DB) *TaskService {
 	return &TaskService{DB: db}
 }
 
+// SetNotificationService sets the notification service for this task service
+func (s *TaskService) SetNotificationService(notificationService *NotificationService) {
+	s.notificationService = notificationService
+}
+
 // CreateTask creates a new task
-func (s *TaskService) CreateTask(title, description string, userID uint, projectID *uint, dueDate *time.Time) (*models.Task, error) {
+func (s *TaskService) CreateTask(title, description string, userID uint, projectID *uint, startTime, endTime, dueDate *time.Time) (*models.Task, error) {
 	// Verify user exists
 	var user models.User
 	if err := s.DB.First(&user, userID).Error; err != nil {
@@ -94,44 +100,72 @@ func (s *TaskService) CreateTaskForUser(title, description string, userID, assig
 }
 
 // CreateCollaborativeTask creates a new collaborative task
-func (s *TaskService) CreateCollaborativeTask(title, description string, userID uint, projectID *uint, dueDate *time.Time) (*models.CollaborativeTask, error) {
-	// Verify user exists
-	var user models.User
-	if err := s.DB.First(&user, userID).Error; err != nil {
-		return nil, errors.New("user not found")
+func (s *TaskService) CreateCollaborativeTask(
+	title, description string,
+	leadUserID uint,
+	projectID *uint,
+	startTime, endTime, dueDate *time.Time,
+	participantIDs []uint,
+	maxParticipants int,
+	priority, complexity string,
+) (*models.CollaborativeTask, error) {
+	// Verify lead user exists
+	var leadUser models.User
+	if err := s.DB.First(&leadUser, leadUserID).Error; err != nil {
+		return nil, errors.New("lead user not found")
 	}
-
-	// If projectID is provided, verify project exists and user is member
 	if projectID != nil {
 		var userProject models.UserProject
-		if err := s.DB.Where("user_id = ? AND project_id = ?", userID, *projectID).First(&userProject).Error; err != nil {
-			return nil, errors.New("user is not a member of this project")
+		if err := s.DB.Where("user_id = ? AND project_id = ?", leadUserID, *projectID).First(&userProject).Error; err != nil {
+			return nil, errors.New("lead user is not a member of this project")
 		}
 	}
-
 	task := &models.CollaborativeTask{
-		Title:       title,
-		Description: description,
-		Status:      models.TaskStatusPending,
-		LeadUserID:  userID,
-		ProjectID:   projectID,
-		AssignedAt:  time.Now(),
-		DueDate:     dueDate,
+		Title:           title,
+		Description:     description,
+		Status:          models.TaskStatusPending,
+		LeadUserID:      leadUserID,
+		ProjectID:       projectID,
+		AssignedAt:      time.Now(),
+		StartTime:       startTime,
+		EndTime:         endTime,
+		DueDate:         dueDate,
+		MaxParticipants: maxParticipants,
+		Priority:        priority,
+		Complexity:      complexity,
 	}
-
 	if err := s.DB.Create(task).Error; err != nil {
 		return nil, err
 	}
-
+	for _, pid := range participantIDs {
+		var participant models.User
+		if err := s.DB.First(&participant, pid).Error; err == nil {
+			s.DB.Create(&models.CollaborativeTaskParticipant{
+				CollaborativeTaskID: task.ID,
+				UserID:              pid,
+				Role:                "contributor",
+				Status:              "active",
+				AssignedAt:          time.Now(),
+			})
+		}
+	}
 	return task, nil
 }
 
 // CreateCollaborativeTaskForUser allows Admin/Manager to create collaborative tasks for specific users
-func (s *TaskService) CreateCollaborativeTaskForUser(title, description string, userID, assignedBy uint, projectID *uint, dueDate *time.Time, priority string) (*models.CollaborativeTask, error) {
-	// Verify target user exists
-	var user models.User
-	if err := s.DB.First(&user, userID).Error; err != nil {
-		return nil, errors.New("target user not found")
+func (s *TaskService) CreateCollaborativeTaskForUser(
+	title, description string,
+	leadUserID, assignedBy uint,
+	projectID *uint,
+	startTime, endTime, dueDate *time.Time,
+	participantIDs []uint,
+	maxParticipants int,
+	priority, complexity string,
+) (*models.CollaborativeTask, error) {
+	// Verify lead user exists
+	var leadUser models.User
+	if err := s.DB.First(&leadUser, leadUserID).Error; err != nil {
+		return nil, errors.New("lead user not found")
 	}
 
 	// Verify assigner exists and has appropriate role
@@ -139,32 +173,49 @@ func (s *TaskService) CreateCollaborativeTaskForUser(title, description string, 
 	if err := s.DB.First(&assigner, assignedBy).Error; err != nil {
 		return nil, errors.New("assigner not found")
 	}
-
-	// Check if assigner has permission (Admin or Manager only)
 	if assigner.Role == models.RoleEmployee || assigner.Role == models.RoleHead {
 		return nil, errors.New("employees and heads cannot assign collaborative tasks to other users")
 	}
 
-	// If projectID is provided, verify project exists and user is member
+	// If projectID is provided, verify project exists and lead user is member
 	if projectID != nil {
 		var userProject models.UserProject
-		if err := s.DB.Where("user_id = ? AND project_id = ?", userID, *projectID).First(&userProject).Error; err != nil {
-			return nil, errors.New("target user is not a member of this project")
+		if err := s.DB.Where("user_id = ? AND project_id = ?", leadUserID, *projectID).First(&userProject).Error; err != nil {
+			return nil, errors.New("lead user is not a member of this project")
 		}
 	}
 
 	task := &models.CollaborativeTask{
-		Title:       title,
-		Description: description,
-		Status:      models.TaskStatusPending,
-		LeadUserID:  userID,
-		ProjectID:   projectID,
-		AssignedAt:  time.Now(),
-		DueDate:     dueDate,
+		Title:           title,
+		Description:     description,
+		Status:          models.TaskStatusPending,
+		LeadUserID:      leadUserID,
+		ProjectID:       projectID,
+		AssignedAt:      time.Now(),
+		StartTime:       startTime,
+		EndTime:         endTime,
+		DueDate:         dueDate,
+		MaxParticipants: maxParticipants,
+		Priority:        priority,
+		Complexity:      complexity,
 	}
 
 	if err := s.DB.Create(task).Error; err != nil {
 		return nil, err
+	}
+
+	// Add participants (if any)
+	for _, pid := range participantIDs {
+		var participant models.User
+		if err := s.DB.First(&participant, pid).Error; err == nil {
+			s.DB.Create(&models.CollaborativeTaskParticipant{
+				CollaborativeTaskID: task.ID,
+				UserID:              pid,
+				Role:                "contributor",
+				Status:              "active",
+				AssignedAt:          time.Now(),
+			})
+		}
 	}
 
 	return task, nil
@@ -645,4 +696,205 @@ func (s *TaskService) GetUserReport(userID uint, period string) (map[string]inte
 	}
 
 	return report, nil
+}
+
+// UpdateTask updates task details (title, description, due date, etc.)
+func (s *TaskService) UpdateTask(taskID uint, updatedBy uint, title, description string, dueDate *time.Time, startTime, endTime *time.Time) (*models.Task, error) {
+	// Get the current task
+	var task models.Task
+	if err := s.DB.First(&task, taskID).Error; err != nil {
+		return nil, errors.New("task not found")
+	}
+
+	// Check if the user has permission to update this task
+	// Only the task creator (who assigned it) or the assigned user can update
+	var assignedByUser models.User
+	if err := s.DB.First(&assignedByUser, updatedBy).Error; err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Get the assigned user
+	var assignedUser models.User
+	if err := s.DB.First(&assignedUser, task.UserID).Error; err != nil {
+		return nil, errors.New("assigned user not found")
+	}
+
+	// Store old values for notification
+	oldTitle := task.Title
+	oldDescription := task.Description
+	oldDueDate := task.DueDate
+
+	// Update task fields
+	if title != "" {
+		task.Title = title
+	}
+	if description != "" {
+		task.Description = description
+	}
+	if dueDate != nil {
+		task.DueDate = dueDate
+	}
+	if startTime != nil {
+		task.StartTime = startTime
+	}
+	if endTime != nil {
+		task.EndTime = endTime
+	}
+
+	// Save the updated task
+	if err := s.DB.Save(&task).Error; err != nil {
+		return nil, err
+	}
+
+	// Send notifications if notification service is available
+	if s.notificationService != nil {
+		// Send notification to the assigned user
+		if task.UserID != updatedBy {
+			s.notificationService.SendTaskUpdatedNotification(&task, &assignedUser, &assignedByUser, oldTitle, oldDescription, oldDueDate)
+		}
+
+		// Send notification to higher-level users (Managers and Admins)
+		s.sendTaskUpdateNotificationToHigherLevels(&task, &assignedByUser, oldTitle, oldDescription, oldDueDate)
+	}
+
+	return &task, nil
+}
+
+// UpdateCollaborativeTask updates collaborative task details
+func (s *TaskService) UpdateCollaborativeTask(taskID uint, updatedBy uint, title, description string, dueDate *time.Time, startTime, endTime *time.Time, priority, complexity string) (*models.CollaborativeTask, error) {
+	// Get the current collaborative task
+	var task models.CollaborativeTask
+	if err := s.DB.First(&task, taskID).Error; err != nil {
+		return nil, errors.New("collaborative task not found")
+	}
+
+	// Check if the user has permission to update this task
+	// Only the lead user or the person who created it can update
+	var updatedByUser models.User
+	if err := s.DB.First(&updatedByUser, updatedBy).Error; err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	// Get the lead user
+	var leadUser models.User
+	if err := s.DB.First(&leadUser, task.LeadUserID).Error; err != nil {
+		return nil, errors.New("lead user not found")
+	}
+
+	// Store old values for notification
+	oldTitle := task.Title
+	oldDescription := task.Description
+	oldDueDate := task.DueDate
+
+	// Update task fields
+	if title != "" {
+		task.Title = title
+	}
+	if description != "" {
+		task.Description = description
+	}
+	if dueDate != nil {
+		task.DueDate = dueDate
+	}
+	if startTime != nil {
+		task.StartTime = startTime
+	}
+	if endTime != nil {
+		task.EndTime = endTime
+	}
+	if priority != "" {
+		task.Priority = priority
+	}
+	if complexity != "" {
+		task.Complexity = complexity
+	}
+
+	// Save the updated task
+	if err := s.DB.Save(&task).Error; err != nil {
+		return nil, err
+	}
+
+	// Send notifications if notification service is available
+	if s.notificationService != nil {
+		// Send notification to the lead user
+		if task.LeadUserID != updatedBy {
+			s.notificationService.SendCollaborativeTaskUpdatedNotification(&task, &leadUser, &updatedByUser, oldTitle, oldDescription, oldDueDate)
+		}
+
+		// Send notification to participants
+		s.sendCollaborativeTaskUpdateNotificationToParticipants(&task, &updatedByUser, oldTitle, oldDescription, oldDueDate)
+
+		// Send notification to higher-level users
+		s.sendCollaborativeTaskUpdateNotificationToHigherLevels(&task, &updatedByUser, oldTitle, oldDescription, oldDueDate)
+	}
+
+	return &task, nil
+}
+
+// sendTaskUpdateNotificationToHigherLevels sends notifications to Managers and Admins
+func (s *TaskService) sendTaskUpdateNotificationToHigherLevels(task *models.Task, updatedByUser *models.User, oldTitle, oldDescription string, oldDueDate *time.Time) {
+	// Get all Managers and Admins
+	var higherLevelUsers []models.User
+	if err := s.DB.Where("role IN ?", []models.Role{models.RoleManager, models.RoleAdmin}).Find(&higherLevelUsers).Error; err != nil {
+		return
+	}
+
+	for _, user := range higherLevelUsers {
+		// Don't send notification to the person who made the update
+		if user.ID == updatedByUser.ID {
+			continue
+		}
+
+		// Check if user wants this notification
+		if s.notificationService.shouldSendNotification(user.ID, models.NotificationTypeTaskUpdated) {
+			s.notificationService.SendTaskUpdatedNotification(task, &user, updatedByUser, oldTitle, oldDescription, oldDueDate)
+		}
+	}
+}
+
+// sendCollaborativeTaskUpdateNotificationToParticipants sends notifications to all participants
+func (s *TaskService) sendCollaborativeTaskUpdateNotificationToParticipants(task *models.CollaborativeTask, updatedByUser *models.User, oldTitle, oldDescription string, oldDueDate *time.Time) {
+	// Get all participants
+	var participants []models.CollaborativeTaskParticipant
+	if err := s.DB.Where("collaborative_task_id = ?", task.ID).Find(&participants).Error; err != nil {
+		return
+	}
+
+	for _, participant := range participants {
+		// Don't send notification to the person who made the update
+		if participant.UserID == updatedByUser.ID {
+			continue
+		}
+
+		var user models.User
+		if err := s.DB.First(&user, participant.UserID).Error; err != nil {
+			continue
+		}
+
+		// Check if user wants this notification
+		if s.notificationService.shouldSendNotification(user.ID, models.NotificationTypeTaskUpdated) {
+			s.notificationService.SendCollaborativeTaskUpdatedNotification(task, &user, updatedByUser, oldTitle, oldDescription, oldDueDate)
+		}
+	}
+}
+
+// sendCollaborativeTaskUpdateNotificationToHigherLevels sends notifications to Managers and Admins for collaborative tasks
+func (s *TaskService) sendCollaborativeTaskUpdateNotificationToHigherLevels(task *models.CollaborativeTask, updatedByUser *models.User, oldTitle, oldDescription string, oldDueDate *time.Time) {
+	// Get all Managers and Admins
+	var higherLevelUsers []models.User
+	if err := s.DB.Where("role IN ?", []models.Role{models.RoleManager, models.RoleAdmin}).Find(&higherLevelUsers).Error; err != nil {
+		return
+	}
+
+	for _, user := range higherLevelUsers {
+		// Don't send notification to the person who made the update
+		if user.ID == updatedByUser.ID {
+			continue
+		}
+
+		// Check if user wants this notification
+		if s.notificationService.shouldSendNotification(user.ID, models.NotificationTypeTaskUpdated) {
+			s.notificationService.SendCollaborativeTaskUpdatedNotification(task, &user, updatedByUser, oldTitle, oldDescription, oldDueDate)
+		}
+	}
 }

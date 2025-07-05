@@ -59,6 +59,7 @@ func AuthMiddleware(db *gorm.DB) gin.HandlerFunc {
 		// Set user info in context
 		c.Set("user", &user)
 		c.Set("userID", user.ID)
+		c.Set("username", user.Username)
 		c.Set("userRole", user.Role)
 
 		c.Next()
@@ -88,7 +89,20 @@ func RequireRole(requiredRole models.Role) gin.HandlerFunc {
 
 // hasPermission checks if user role has permission for required role
 // Role hierarchy: admin > manager > head > employee
+// HR has special permissions separate from hierarchy
 func hasPermission(userRole, requiredRole models.Role) bool {
+	// Admin has access to everything
+	if userRole == models.RoleAdmin {
+		return true
+	}
+
+	// HR has special permissions - only specific HR functions
+	if userRole == models.RoleHR {
+		// HR can access user management, reports, but not task assignment
+		return requiredRole == models.RoleHR || requiredRole == models.RoleEmployee
+	}
+
+	// Normal hierarchy for other roles
 	roleHierarchy := map[models.Role]int{
 		models.RoleEmployee: 1,
 		models.RoleHead:     2,
@@ -115,6 +129,58 @@ func RequireManagerOrHigher() gin.HandlerFunc {
 // RequireHeadOrHigher middleware - head, manager, or admin can access
 func RequireHeadOrHigher() gin.HandlerFunc {
 	return RequireRole(models.RoleHead)
+}
+
+// RequireHROrAdmin middleware - only HR or Admin can access
+func RequireHROrAdmin() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRole, exists := c.Get("userRole")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+			c.Abort()
+			return
+		}
+
+		role := userRole.(models.Role)
+		if role != models.RoleHR && role != models.RoleAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "HR or Admin access required"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// RequireHROrHigher middleware - hr, manager, or admin can access
+func RequireHROrHigher() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRole, exists := c.Get("userRole")
+		if !exists {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+			c.Abort()
+			return
+		}
+
+		role := userRole.(models.Role)
+		if role != models.RoleHR && role != models.RoleManager && role != models.RoleAdmin {
+			c.JSON(http.StatusForbidden, gin.H{"error": "HR, Manager, or Admin access required"})
+			c.Abort()
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// IsHRRole checks if user has HR role
+func IsHRRole(userRole models.Role) bool {
+	return userRole == models.RoleHR
+}
+
+// IsManagerOrHigher checks if user has manager or higher permissions (excluding HR)
+func IsManagerOrHigher(userRole models.Role) bool {
+	return userRole == models.RoleManager || userRole == models.RoleAdmin
 }
 
 // RequireSelfOrAdmin middleware - user can access their own data or admin can access any
