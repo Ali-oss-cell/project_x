@@ -1,741 +1,1358 @@
 {
 	"info": {
-		"_postman_id": "project-x-api-collection",
-		"name": "Project X API Collection",
-		"description": "Complete API collection for Project Management System with authentication, users, projects, tasks, and reports",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	  "name": "Project X - Task Management API",
+	  "description": "Complete API collection for Project X with Arabic Working Hours & AI Integration",
+	  "version": "1.0.0",
+	  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+	  {
+		"key": "baseUrl",
+		"value": "http://localhost:8080",
+		"type": "string"
+	  },
+	  {
+		"key": "authToken",
+		"value": "",
+		"type": "string"
+	  }
+	],
+	"auth": {
+	  "type": "bearer",
+	  "bearer": [
+		{
+		  "key": "token",
+		  "value": "{{authToken}}",
+		  "type": "string"
+		}
+	  ]
 	},
 	"item": [
-		{
-			"name": "Authentication",
-			"item": [
+	  {
+		"name": "🔐 Authentication",
+		"item": [
+		  {
+			"name": "Login",
+			"request": {
+			  "method": "POST",
+			  "header": [
 				{
-					"name": "Register User",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\",\n  \"role\": \"admin\",\n  \"department\": \"IT\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/auth/register",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "register"]
-						}
-					}
-				},
-				{
-					"name": "Login",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/auth/login",
-							"host": ["{{base_url}}"],
-							"path": ["api", "auth", "login"]
-						}
-					}
+				  "key": "Content-Type",
+				  "value": "application/json"
 				}
-			]
-		},
-		{
-			"name": "Users",
-			"item": [
-				{
-					"name": "Get All Users (Admin)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/users",
-							"host": ["{{base_url}}"],
-							"path": ["api", "users"]
-						}
-					}
-				},
-				{
-					"name": "Get User by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/users/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "users", "1"]
-						}
-					}
-				},
-				{
-					"name": "Create User (Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"username\": \"john_doe\",\n  \"password\": \"password123\",\n  \"role\": \"employee\",\n  \"department\": \"Engineering\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/users",
-							"host": ["{{base_url}}"],
-							"path": ["api", "users"]
-						}
-					}
-				},
-				{
-					"name": "Update User (Admin)",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"username\": \"john_doe_updated\",\n  \"role\": \"head\",\n  \"department\": \"Engineering\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/users/2",
-							"host": ["{{base_url}}"],
-							"path": ["api", "users", "2"]
-						}
-					}
-				},
-				{
-					"name": "Delete User (Admin)",
-					"request": {
-						"method": "DELETE",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/users/2",
-							"host": ["{{base_url}}"],
-							"path": ["api", "users", "2"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Projects",
-			"item": [
-				{
-					"name": "Create Project (Manager/Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"E-commerce Platform\",\n  \"description\": \"Build a modern e-commerce platform with React and Node.js\",\n  \"start_date\": \"2024-01-01T00:00:00Z\",\n  \"end_date\": \"2024-06-30T00:00:00Z\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/projects",
-							"host": ["{{base_url}}"],
-							"path": ["api", "projects"]
-						}
-					}
-				},
-				{
-					"name": "Get All Projects",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/projects",
-							"host": ["{{base_url}}"],
-							"path": ["api", "projects"]
-						}
-					}
-				},
-				{
-					"name": "Get Project by ID",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/projects/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "projects", "1"]
-						}
-					}
-				},
-				{
-					"name": "Update Project (Manager/Admin)",
-					"request": {
-						"method": "PUT",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"E-commerce Platform v2\",\n  \"description\": \"Updated description\",\n  \"status\": \"active\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/projects/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "projects", "1"]
-						}
-					}
-				},
-				{
-					"name": "Add User to Project (Manager/Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"user_id\": 2,\n  \"role\": \"member\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/projects/1/users",
-							"host": ["{{base_url}}"],
-							"path": ["api", "projects", "1", "users"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Tasks",
-			"item": [
-				{
-					"name": "Create Task (Head/Manager/Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Design Database Schema\",\n  \"description\": \"Create ERD and database schema for the e-commerce platform\",\n  \"project_id\": 1,\n  \"due_date\": \"2024-01-15T00:00:00Z\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/tasks",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks"]
-						}
-					}
-				},
-				{
-					"name": "Get User Tasks",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks"]
-						}
-					}
-				},
-				{
-					"name": "Get Tasks by Status",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/status/pending",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "status", "pending"]
-						}
-					}
-				},
-				{
-					"name": "Update Task Status",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"status\": \"in_progress\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/tasks/1/status",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "1", "status"]
-						}
-					}
-				},
-				{
-					"name": "Get Project Tasks",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/project/1",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "project", "1"]
-						}
-					}
-				},
-				{
-					"name": "Assign Task to User (Manager/Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Implement User Authentication\",\n  \"description\": \"Create JWT-based authentication system\",\n  \"user_id\": 2,\n  \"project_id\": 1,\n  \"due_date\": \"2024-01-20T00:00:00Z\",\n  \"priority\": \"high\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/tasks/assign",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "assign"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Collaborative Tasks",
-			"item": [
-				{
-					"name": "Create Collaborative Task (Head/Manager/Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"title\": \"Frontend Development Sprint\",\n  \"description\": \"Complete the React frontend for the e-commerce platform\",\n  \"project_id\": 1,\n  \"due_date\": \"2024-02-01T00:00:00Z\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/tasks/collaborative",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "collaborative"]
-						}
-					}
-				},
-				{
-					"name": "Get User Collaborative Tasks",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/collaborative",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "collaborative"]
-						}
-					}
-				},
-				{
-					"name": "Update Collaborative Task Status",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"status\": \"completed\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/tasks/collaborative/1/status",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "collaborative", "1", "status"]
-						}
-					}
-				},
-				{
-					"name": "Add Participant to Collaborative Task",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"user_id\": 2,\n  \"role\": \"contributor\",\n  \"contribution\": \"UI/UX design implementation\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/collaborative-tasks/1/participants",
-							"host": ["{{base_url}}"],
-							"path": ["api", "collaborative-tasks", "1", "participants"]
-						}
-					}
-				},
-				{
-					"name": "Update Task Progress",
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"progress\": 75\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/collaborative-tasks/1/progress",
-							"host": ["{{base_url}}"],
-							"path": ["api", "collaborative-tasks", "1", "progress"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Reports & Statistics",
-			"item": [
-				{
-					"name": "Get Task Statistics (Manager/Admin)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/statistics",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "statistics"]
-						}
-					}
-				},
-				{
-					"name": "Get Project Report - Weekly",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/reports/project/1?period=weekly",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "reports", "project", "1"],
-							"query": [
-								{
-									"key": "period",
-									"value": "weekly"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Project Report - Monthly",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/reports/project/1?period=monthly",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "reports", "project", "1"],
-							"query": [
-								{
-									"key": "period",
-									"value": "monthly"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get User Report - Weekly",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/reports/user/1?period=weekly",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "reports", "user", "1"],
-							"query": [
-								{
-									"key": "period",
-									"value": "weekly"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get User Report - Monthly",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/reports/user/1?period=monthly",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "reports", "user", "1"],
-							"query": [
-								{
-									"key": "period",
-									"value": "monthly"
-								}
-							]
-						}
-					}
-				},
-				{
-					"name": "Get Tasks by Department (Manager/Admin)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							}
-						],
-						"url": {
-							"raw": "{{base_url}}/api/tasks/department/Engineering",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "department", "Engineering"]
-						}
-					}
-				},
-				{
-					"name": "Bulk Update Task Status (Manager/Admin)",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{auth_token}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"task_ids\": [1, 2, 3],\n  \"status\": \"completed\"\n}"
-						},
-						"url": {
-							"raw": "{{base_url}}/api/tasks/bulk-update",
-							"host": ["{{base_url}}"],
-							"path": ["api", "tasks", "bulk-update"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Health Check",
-			"item": [
-				{
-					"name": "Health Check",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "{{base_url}}/health",
-							"host": ["{{base_url}}"],
-							"path": ["health"]
-						}
-					}
-				}
-			]
-		}
-	],
-	"event": [
-		{
-			"listen": "prerequest",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					""
-				]
-			}
-		},
-		{
-			"listen": "test",
-			"script": {
-				"type": "text/javascript",
-				"exec": [
-					"// Auto-save auth token from login response",
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/auth/login",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "auth", "login"]
+			  }
+			},
+			"event": [
+			  {
+				"listen": "test",
+				"script": {
+				  "exec": [
 					"if (pm.response.code === 200) {",
 					"    const response = pm.response.json();",
-					"    if (response.token) {",
-					"        pm.environment.set('auth_token', response.token);",
-					"    }",
+					"    pm.collectionVariables.set('authToken', response.token);",
 					"}"
-				]
+				  ]
+				}
+			  }
+			]
+		  }
+		]
+	  },
+	  {
+		"name": "🏥 Health Check",
+		"item": [
+		  {
+			"name": "Health Check",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/health",
+				"host": ["{{baseUrl}}"],
+				"path": ["health"]
+			  }
 			}
-		}
-	],
-	"variable": [
-		{
-			"key": "base_url",
-			"value": "http://localhost:8080",
-			"type": "string"
-		},
-		{
-			"key": "auth_token",
-			"value": "",
-			"type": "string"
-		}
+		  }
+		]
+	  },
+	  {
+		"name": "👥 Users Management",
+		"item": [
+		  {
+			"name": "Create User (Admin Only)",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"username\": \"newuser\",\n  \"email\": \"newuser@example.com\",\n  \"password\": \"password123\",\n  \"role\": \"employee\",\n  \"department\": \"IT\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/users",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users"]
+			  }
+			}
+		  },
+		  {
+			"name": "List Users (HR+)",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/users",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get User by ID",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "1"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Users by Role",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/role/employee",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "role", "employee"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Users by Department",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/department/IT",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "department", "IT"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update User Role (Admin Only)",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"role\": \"manager\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/1/role",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "1", "role"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update User Department (HR+)",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"department\": \"Marketing\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/1/department",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "1", "department"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get User Stats",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/1/stats",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "1", "stats"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update User Password",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"current_password\": \"oldpassword\",\n  \"new_password\": \"newpassword123\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/1/password",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "1", "password"]
+			  }
+			}
+		  },
+		  {
+			"name": "Delete User (Admin Only)",
+			"request": {
+			  "method": "DELETE",
+			  "url": {
+				"raw": "{{baseUrl}}/api/users/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "users", "1"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "📋 Tasks Management",
+		"item": [
+		  {
+			"name": "Smart Task Handler - Create",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"type\": \"regular\",\n  \"title\": \"Test Task\",\n  \"description\": \"This is a test task\",\n  \"project_id\": 1,\n  \"due_date\": \"2024-12-31T23:59:59Z\",\n  \"priority\": \"high\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks?action=create",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "create"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Query My Tasks",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks?action=query&type=all&view=my_tasks",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "query"
+				  },
+				  {
+					"key": "type",
+					"value": "all"
+				  },
+				  {
+					"key": "view",
+					"value": "my_tasks"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Query by Status",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks?action=query&type=regular&status=pending",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "query"
+				  },
+				  {
+					"key": "type",
+					"value": "regular"
+				  },
+				  {
+					"key": "status",
+					"value": "pending"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Query by Project",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks?action=query&type=all&project_id=1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "query"
+				  },
+				  {
+					"key": "type",
+					"value": "all"
+				  },
+				  {
+					"key": "project_id",
+					"value": "1"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Query by Department",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks?action=query&type=all&department=IT",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "query"
+				  },
+				  {
+					"key": "type",
+					"value": "all"
+				  },
+				  {
+					"key": "department",
+					"value": "IT"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Update Task",
+			"request": {
+			  "method": "PUT",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"title\": \"Updated Task Title\",\n  \"description\": \"Updated description\",\n  \"due_date\": \"2024-12-25T23:59:59Z\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/1?action=update&type=regular",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "1"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "update"
+				  },
+				  {
+					"key": "type",
+					"value": "regular"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Delete Task",
+			"request": {
+			  "method": "DELETE",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/1?action=delete&type=regular",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "1"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "delete"
+				  },
+				  {
+					"key": "type",
+					"value": "regular"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Smart Task Handler - Bulk Update",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"task_ids\": [1, 2, 3],\n  \"task_type\": \"regular\",\n  \"status\": \"in_progress\",\n  \"due_date\": \"2024-12-20T23:59:59Z\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/bulk?action=bulk_update",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "bulk"],
+				"query": [
+				  {
+					"key": "action",
+					"value": "bulk_update"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Task Status",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"status\": \"in_progress\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/1/status",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "1", "status"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Task Statistics",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/statistics",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "statistics"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Tasks with Arabic Context",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/arabic-context",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "arabic-context"]
+			  }
+			}
+		  },
+		  {
+			"name": "Create Task with Arabic Scheduling",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"title\": \"Arabic Scheduled Task\",\n  \"description\": \"Task optimized for Arabic working hours\",\n  \"due_date\": \"2024-12-31T23:59:59Z\",\n  \"estimated_hours\": 16,\n  \"use_ai_optimization\": true,\n  \"respect_working_hours\": true,\n  \"priority\": \"high\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/arabic-schedule",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "arabic-schedule"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Task Time Analysis",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/1/time-analysis",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "1", "time-analysis"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "🤝 Collaborative Tasks",
+		"item": [
+		  {
+			"name": "Create Collaborative Task",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"title\": \"Team Project\",\n  \"description\": \"Collaborative task for team\",\n  \"project_id\": 1,\n  \"participant_ids\": [2, 3, 4],\n  \"max_participants\": 5,\n  \"priority\": \"high\",\n  \"complexity\": \"medium\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get User Collaborative Tasks",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Collaborative Task Details",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks", "1"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Collaborative Task Statistics",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks/1/statistics",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks", "1", "statistics"]
+			  }
+			}
+		  },
+		  {
+			"name": "Add Participant",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"user_id\": 5\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks/1/participants",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks", "1", "participants"]
+			  }
+			}
+		  },
+		  {
+			"name": "Remove Participant",
+			"request": {
+			  "method": "DELETE",
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks/1/participants/5",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks", "1", "participants", "5"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Task Progress",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"progress\": 75,\n  \"notes\": \"Making good progress on the collaborative task\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/collaborative-tasks/1/progress",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "collaborative-tasks", "1", "progress"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Collaborative Task Status",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"status\": \"in_progress\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/tasks/1/collaborative/status",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "tasks", "1", "collaborative", "status"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "📊 Projects Management",
+		"item": [
+		  {
+			"name": "Create Project",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"title\": \"New Project\",\n  \"description\": \"Project description\",\n  \"start_date\": \"2024-01-01T00:00:00Z\",\n  \"end_date\": \"2024-12-31T23:59:59Z\",\n  \"status\": \"active\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get User Projects",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/my-projects",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "my-projects"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Project Details",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Project Members",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1/members",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1", "members"]
+			  }
+			}
+		  },
+		  {
+			"name": "Add User to Project",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"user_id\": 2,\n  \"role\": \"member\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1/members",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1", "members"]
+			  }
+			}
+		  },
+		  {
+			"name": "Remove User from Project",
+			"request": {
+			  "method": "DELETE",
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1/members/2",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1", "members", "2"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Project Status",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"status\": \"completed\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1/status",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1", "status"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Project Statistics",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1/statistics",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1", "statistics"]
+			  }
+			}
+		  },
+		  {
+			"name": "Delete Project",
+			"request": {
+			  "method": "DELETE",
+			  "url": {
+				"raw": "{{baseUrl}}/api/projects/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "projects", "1"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "🔔 Notifications",
+		"item": [
+		  {
+			"name": "Get User Notifications",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Unread Count",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/unread-count",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "unread-count"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Notification Preferences",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/preferences",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "preferences"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Notification Preferences",
+			"request": {
+			  "method": "PUT",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"email_notifications\": true,\n  \"push_notifications\": false,\n  \"task_assignments\": true,\n  \"status_updates\": true,\n  \"project_updates\": false\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/preferences",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "preferences"]
+			  }
+			}
+		  },
+		  {
+			"name": "Mark Notification as Read",
+			"request": {
+			  "method": "PUT",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/1/read",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "1", "read"]
+			  }
+			}
+		  },
+		  {
+			"name": "Mark All Notifications as Read",
+			"request": {
+			  "method": "PUT",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/read-all",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "read-all"]
+			  }
+			}
+		  },
+		  {
+			"name": "Delete Notification",
+			"request": {
+			  "method": "DELETE",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "1"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Notification Rules (Admin)",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/rules",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "rules"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Notification Rules (Admin)",
+			"request": {
+			  "method": "PUT",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"task_assignment_notifications\": true,\n  \"status_change_notifications\": true,\n  \"project_update_notifications\": true,\n  \"deadline_reminder_hours\": 24\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/notifications/rules",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "notifications", "rules"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "💬 Chat System",
+		"item": [
+		  {
+			"name": "Get or Create Team Chat",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/chat/team-chat",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "chat", "team-chat"]
+			  }
+			}
+		  },
+		  {
+			"name": "Send Message",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"content\": \"Hello team! This is a test message.\",\n  \"message_type\": \"text\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/chat/rooms/1/messages",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "chat", "rooms", "1", "messages"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Messages",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/chat/rooms/1/messages?page=1&limit=20",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "chat", "rooms", "1", "messages"],
+				"query": [
+				  {
+					"key": "page",
+					"value": "1"
+				  },
+				  {
+					"key": "limit",
+					"value": "20"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Room Members",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/chat/rooms/1/members",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "chat", "rooms", "1", "members"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get WebSocket Status",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/chat/ws/status",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "chat", "ws", "status"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get WebSocket Connection Status",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ws/status",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ws", "status"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "🚨 HR Problem Reporting",
+		"item": [
+		  {
+			"name": "Get Problem Categories",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/categories",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "categories"]
+			  }
+			}
+		  },
+		  {
+			"name": "Report a Problem",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"title\": \"Workplace Safety Concern\",\n  \"description\": \"Detailed description of the problem...\",\n  \"category\": \"safety_concerns\",\n  \"priority\": \"high\",\n  \"is_anonymous\": false,\n  \"contact_method\": \"email\",\n  \"phone_number\": \"+1234567890\",\n  \"preferred_time\": \"9 AM - 5 PM\",\n  \"witness_info\": \"John Doe witnessed the incident\",\n  \"location\": \"Factory Floor A\",\n  \"incident_date\": \"2024-01-15T10:30:00Z\",\n  \"previous_reports\": false\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get My Problems",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/my-problems?page=1&limit=20",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "my-problems"],
+				"query": [
+				  {
+					"key": "page",
+					"value": "1"
+				  },
+				  {
+					"key": "limit",
+					"value": "20"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Specific Problem",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/1",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "1"]
+			  }
+			}
+		  },
+		  {
+			"name": "Add Comment",
+			"request": {
+			  "method": "POST",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"comment\": \"Additional information about the incident\",\n  \"is_hr_only\": false\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/1/comments",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "1", "comments"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get All Problems (HR+)",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems?page=1&limit=20&status=pending&category=harassment&priority=high",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems"],
+				"query": [
+				  {
+					"key": "page",
+					"value": "1"
+				  },
+				  {
+					"key": "limit",
+					"value": "20"
+				  },
+				  {
+					"key": "status",
+					"value": "pending"
+				  },
+				  {
+					"key": "category",
+					"value": "harassment"
+				  },
+				  {
+					"key": "priority",
+					"value": "high"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Assigned Problems (HR+)",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/assigned?page=1&limit=20",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "assigned"],
+				"query": [
+				  {
+					"key": "page",
+					"value": "1"
+				  },
+				  {
+					"key": "limit",
+					"value": "20"
+				  }
+				]
+			  }
+			}
+		  },
+		  {
+			"name": "Update Problem Status (HR+)",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"status\": \"reviewing\",\n  \"note\": \"Started investigation process\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/1/status",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "1", "status"]
+			  }
+			}
+		  },
+		  {
+			"name": "Assign Problem (HR+)",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"hr_user_id\": 5\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/1/assign",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "1", "assign"]
+			  }
+			}
+		  },
+		  {
+			"name": "Update HR Notes (HR+)",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"notes\": \"Internal HR notes about the case...\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/1/notes",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "1", "notes"]
+			  }
+			}
+		  },
+		  {
+			"name": "Set Resolution (HR+)",
+			"request": {
+			  "method": "PATCH",
+			  "header": [
+				{
+				  "key": "Content-Type",
+				  "value": "application/json"
+				}
+			  ],
+			  "body": {
+				"mode": "raw",
+				"raw": "{\n  \"resolution\": \"Issue resolved through mediation and policy clarification\"\n}"
+			  },
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/1/resolution",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "1", "resolution"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Statistics (HR+)",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/hr-problems/statistics",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "hr-problems", "statistics"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "🤖 AI Time Optimization",
+		"item": [
+		  {
+			"name": "Get Full Time Analysis",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/analysis",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "analysis"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get My Time Analysis",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/my-analysis",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "my-analysis"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Project Time Report",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/project/1/report",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "project", "1", "report"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get User Workload Analysis",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/user/1/workload",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "user", "1", "workload"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Critical Time Alerts",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/alerts",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "alerts"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get Time Optimization Dashboard",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/dashboard",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "dashboard"]
+			  }
+			}
+		  },
+		  {
+			"name": "Get AI Recommendations",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/api/ai/time/recommendations",
+				"host": ["{{baseUrl}}"],
+				"path": ["api", "ai", "time", "recommendations"]
+			  }
+			}
+		  }
+		]
+	  },
+	  {
+		"name": "📡 WebSocket",
+		"item": [
+		  {
+			"name": "WebSocket Connection",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/ws",
+				"host": ["{{baseUrl}}"],
+				"path": ["ws"]
+			  }
+			}
+		  },
+		  {
+			"name": "Chat WebSocket Connection",
+			"request": {
+			  "method": "GET",
+			  "url": {
+				"raw": "{{baseUrl}}/ws/chat",
+				"host": ["{{baseUrl}}"],
+				"path": ["ws", "chat"]
+			  }
+			}
+		  }
+		]
+	  }
 	]
-} 
+  }

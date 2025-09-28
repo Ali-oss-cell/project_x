@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"net/http"
+	"project-x/config"
 	"project-x/models"
 	"project-x/services"
 	"strconv"
@@ -15,6 +16,8 @@ type TaskHandler struct {
 	DB                  *gorm.DB
 	TaskService         *services.TaskService
 	NotificationService *services.NotificationService
+	WorkSchedule        *config.WorkScheduleConfig
+	AIOptimizer         *services.AITimeOptimizer
 }
 
 func NewTaskHandler(db *gorm.DB) *TaskHandler {
@@ -25,7 +28,13 @@ func NewTaskHandler(db *gorm.DB) *TaskHandler {
 	// Set the notification service in the task service
 	taskService.SetNotificationService(notificationService)
 
-	return &TaskHandler{DB: db, TaskService: taskService, NotificationService: notificationService}
+	return &TaskHandler{
+		DB:                  db,
+		TaskService:         taskService,
+		NotificationService: notificationService,
+		WorkSchedule:        config.GetDefaultWorkSchedule(),
+		AIOptimizer:         services.NewAITimeOptimizer(db),
+	}
 }
 
 // CreateTask creates a new task
@@ -2102,6 +2111,351 @@ func (h *TaskHandler) handleSmartBulkUpdate(c *gin.Context, currentUserID uint, 
 
 	if len(permissionDeniedTasks) > 0 {
 		response["permission_denied_tasks"] = permissionDeniedTasks
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// GetTasksWithArabicTimeContext returns tasks with Arabic working hours context
+func (h *TaskHandler) GetTasksWithArabicTimeContext(c *gin.Context) {
+	userID, _ := c.Get("userID")
+
+	// Get user's tasks
+	tasks, err := h.TaskService.GetUserTasks(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch tasks"})
+		return
+	}
+
+	// Enhance tasks with Arabic working hours context
+	var enhancedTasks []gin.H
+	now := time.Now()
+
+	for _, task := range tasks {
+		taskInfo := gin.H{
+			"id":          task.ID,
+			"title":       task.Title,
+			"description": task.Description,
+			"status":      task.Status,
+			"project_id":  task.ProjectID,
+			"assigned_at": task.AssignedAt,
+			"due_date":    task.DueDate,
+			"created_at":  task.CreatedAt,
+		}
+
+		// Add Arabic working hours context
+		if task.DueDate != nil {
+			workingHoursUntilDeadline := h.WorkSchedule.GetWorkingHoursInPeriod(now, *task.DueDate)
+			workingDaysUntilDeadline := h.WorkSchedule.GetWorkingDaysUntil(now, *task.DueDate)
+			deadlineRisk := h.WorkSchedule.CalculateDeadlineRisk(*task.DueDate, 8.0) // Assume 8 hours default
+
+			taskInfo["arabic_time_context"] = gin.H{
+				"working_hours_until_deadline": workingHoursUntilDeadline,
+				"working_days_until_deadline":  workingDaysUntilDeadline,
+				"deadline_risk":                deadlineRisk,
+				"is_overdue":                   task.DueDate.Before(now),
+				"optimal_start_time":           h.WorkSchedule.GetOptimalTaskSchedule(8.0, *task.DueDate),
+			}
+		}
+
+		// Add current working status
+		taskInfo["current_working_status"] = gin.H{
+			"is_working_hour": h.WorkSchedule.IsWorkingHour(now),
+			"is_working_day":  h.WorkSchedule.IsWorkingDay(now),
+			"current_time":    now,
+		}
+
+		enhancedTasks = append(enhancedTasks, taskInfo)
+	}
+
+	response := gin.H{
+		"tasks": enhancedTasks,
+		"working_schedule": gin.H{
+			"working_days":    []string{"Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"},
+			"working_hours":   "9:00 AM - 4:00 PM",
+			"weekly_capacity": h.WorkSchedule.WeeklyHours,
+			"lunch_break":     "12:00 PM - 1:00 PM",
+			"timezone":        h.WorkSchedule.TimeZone,
+		},
+		"summary": gin.H{
+			"total_tasks":      len(enhancedTasks),
+			"current_time":     now,
+			"is_working_hour":  h.WorkSchedule.IsWorkingHour(now),
+			"is_working_day":   h.WorkSchedule.IsWorkingDay(now),
+			"next_working_day": h.WorkSchedule.GetNextWorkingDay(now),
+		},
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+// CreateTaskWithArabicScheduling creates a task with Arabic working hours optimization
+func (h *TaskHandler) CreateTaskWithArabicScheduling(c *gin.Context) {
+	var createTaskRequest struct {
+		Title               string     `json:"title" binding:"required"`
+		Description         string     `json:"description" binding:"required"`
+		ProjectID           *uint      `json:"project_id"`
+		DueDate             *time.Time `json:"due_date"`
+		AssignedTo          *uint      `json:"assigned_to"`
+		EstimatedHours      *float64   `json:"estimated_hours"`       // Optional: user can provide estimate
+		UseAIOptimization   bool       `json:"use_ai_optimization"`   // Whether to use AI for scheduling
+		RespectWorkingHours bool       `json:"respect_working_hours"` // Default true
+		Priority            string     `json:"priority"`              // high, medium, low
+	}
+
+	if err := c.ShouldBindJSON(&createTaskRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Get current user info from context
+	userID, _ := c.Get("userID")
+	userRole, _ := c.Get("userRole")
+
+	// Determine who the task should be assigned to
+	var assignedUserID uint
+	if createTaskRequest.AssignedTo != nil {
+		// Check if current user has permission to assign tasks to others
+		if userRole == models.RoleEmployee || userRole == models.RoleHead || userRole == models.RoleHR {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Employees, Heads, and HR cannot assign tasks to other users"})
+			return
+		}
+		assignedUserID = *createTaskRequest.AssignedTo
+	} else {
+		assignedUserID = userID.(uint)
+	}
+
+	// Calculate optimal timing based on Arabic working schedule
+	now := time.Now()
+	var optimalStartTime, optimalEndTime *time.Time
+	var aiRecommendations []string
+	var estimatedHours float64 = 8.0 // Default
+
+	if createTaskRequest.EstimatedHours != nil {
+		estimatedHours = *createTaskRequest.EstimatedHours
+	}
+
+	// Determine optimal start time
+	if createTaskRequest.RespectWorkingHours {
+		optimalStart := h.WorkSchedule.GetOptimalTaskSchedule(estimatedHours, *createTaskRequest.DueDate)
+		optimalStartTime = &optimalStart
+
+		// Calculate end time based on working hours
+		workingDaysNeeded := int(estimatedHours / h.WorkSchedule.WorkingHours)
+		if estimatedHours > float64(workingDaysNeeded)*h.WorkSchedule.WorkingHours {
+			workingDaysNeeded++ // Round up
+		}
+
+		endTime := optimalStart
+		for i := 0; i < workingDaysNeeded; i++ {
+			endTime = h.WorkSchedule.GetNextWorkingDay(endTime)
+		}
+		optimalEndTime = &endTime
+
+		// Generate recommendations
+		aiRecommendations = []string{
+			"ابدأ العمل في بداية اليوم لأفضل تركيز",
+			"خصص وقت للمراجعة قبل نهاية اليوم",
+			"تجنب العمل على المهام المعقدة بعد 3 عصراً",
+		}
+
+		if createTaskRequest.DueDate != nil {
+			workingHoursUntilDeadline := h.WorkSchedule.GetWorkingHoursInPeriod(now, *createTaskRequest.DueDate)
+			deadlineRisk := h.WorkSchedule.CalculateDeadlineRisk(*createTaskRequest.DueDate, estimatedHours)
+
+			if deadlineRisk == "high" || deadlineRisk == "critical" {
+				aiRecommendations = append(aiRecommendations,
+					"المهمة تحتاج اهتمام عاجل - ابدأ فوراً",
+					"فكر في طلب مساعدة إضافية",
+					"قلل من المهام الأخرى للتركيز على هذه المهمة",
+				)
+			}
+
+			if workingHoursUntilDeadline < estimatedHours {
+				aiRecommendations = append(aiRecommendations,
+					"الوقت المتاح أقل من المطلوب - أعد تقييم الموعد النهائي",
+					"فكر في تقسيم المهمة لأجزاء أصغر",
+				)
+			}
+		}
+	}
+
+	// Create the task
+	task, err := h.TaskService.CreateTask(
+		createTaskRequest.Title,
+		createTaskRequest.Description,
+		assignedUserID,
+		createTaskRequest.ProjectID,
+		optimalStartTime,
+		optimalEndTime,
+		createTaskRequest.DueDate,
+	)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Send notification if task is assigned to someone else
+	if assignedUserID != userID.(uint) {
+		var assignedUser, currentUser models.User
+		if err := h.DB.First(&assignedUser, assignedUserID).Error; err == nil {
+			if err := h.DB.First(&currentUser, userID.(uint)).Error; err == nil {
+				h.NotificationService.SendTaskAssignedNotification(task, &assignedUser, &currentUser)
+			}
+		}
+	}
+
+	// Prepare response with Arabic working hours context
+	response := gin.H{
+		"message": "Task created successfully with Arabic working hours optimization",
+		"task": gin.H{
+			"id":          task.ID,
+			"title":       task.Title,
+			"description": task.Description,
+			"status":      task.Status,
+			"user_id":     task.UserID,
+			"project_id":  task.ProjectID,
+			"assigned_at": task.AssignedAt,
+			"due_date":    task.DueDate,
+			"start_time":  optimalStartTime,
+			"end_time":    optimalEndTime,
+			"created_at":  task.CreatedAt,
+		},
+		"arabic_optimization": gin.H{
+			"estimated_hours":     estimatedHours,
+			"optimal_start_time":  optimalStartTime,
+			"optimal_end_time":    optimalEndTime,
+			"ai_recommendations":  aiRecommendations,
+			"working_days_needed": int(estimatedHours / h.WorkSchedule.WorkingHours),
+		},
+		"working_schedule": gin.H{
+			"working_days":    []string{"Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"},
+			"working_hours":   "9:00 AM - 4:00 PM",
+			"weekly_capacity": h.WorkSchedule.WeeklyHours,
+			"lunch_break":     "12:00 PM - 1:00 PM",
+			"timezone":        h.WorkSchedule.TimeZone,
+		},
+	}
+
+	if createTaskRequest.DueDate != nil {
+		workingHoursUntilDeadline := h.WorkSchedule.GetWorkingHoursInPeriod(now, *createTaskRequest.DueDate)
+		workingDaysUntilDeadline := h.WorkSchedule.GetWorkingDaysUntil(now, *createTaskRequest.DueDate)
+		deadlineRisk := h.WorkSchedule.CalculateDeadlineRisk(*createTaskRequest.DueDate, estimatedHours)
+
+		response["deadline_analysis"] = gin.H{
+			"working_hours_until_deadline": workingHoursUntilDeadline,
+			"working_days_until_deadline":  workingDaysUntilDeadline,
+			"deadline_risk":                deadlineRisk,
+			"feasible":                     workingHoursUntilDeadline >= estimatedHours,
+		}
+	}
+
+	c.JSON(http.StatusCreated, response)
+}
+
+// GetTaskTimeAnalysis returns AI-powered time analysis for a specific task
+func (h *TaskHandler) GetTaskTimeAnalysis(c *gin.Context) {
+	taskID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid task ID"})
+		return
+	}
+
+	userID, _ := c.Get("userID")
+	userRole, _ := c.Get("userRole")
+
+	// Get the task
+	var task models.Task
+	if err := h.DB.Preload("User").Preload("Project").First(&task, taskID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
+		return
+	}
+
+	// Check permissions - user can only analyze their own tasks unless they're Manager+/HR/Admin
+	if task.UserID != userID.(uint) {
+		if userRole == models.RoleEmployee || userRole == models.RoleHead {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only analyze your own tasks"})
+			return
+		}
+	}
+
+	// Get AI analysis if available
+	var aiAnalysis *services.TimeAnalysis
+	if h.AIOptimizer != nil {
+		// Try to get AI analysis for this specific task
+		allAnalyses, err := h.AIOptimizer.AnalyzeTaskTimeRisks()
+		if err == nil {
+			for _, analysis := range allAnalyses {
+				if analysis.TaskID == uint(taskID) {
+					aiAnalysis = &analysis
+					break
+				}
+			}
+		}
+	}
+
+	// Calculate basic working hours context
+	now := time.Now()
+	var workingHoursContext gin.H
+
+	if task.DueDate != nil {
+		workingHoursUntilDeadline := h.WorkSchedule.GetWorkingHoursInPeriod(now, *task.DueDate)
+		workingDaysUntilDeadline := h.WorkSchedule.GetWorkingDaysUntil(now, *task.DueDate)
+		deadlineRisk := h.WorkSchedule.CalculateDeadlineRisk(*task.DueDate, 8.0) // Default 8 hours
+
+		workingHoursContext = gin.H{
+			"working_hours_until_deadline": workingHoursUntilDeadline,
+			"working_days_until_deadline":  workingDaysUntilDeadline,
+			"deadline_risk":                deadlineRisk,
+			"is_overdue":                   task.DueDate.Before(now),
+			"optimal_start_time":           h.WorkSchedule.GetOptimalTaskSchedule(8.0, *task.DueDate),
+		}
+	}
+
+	response := gin.H{
+		"task": gin.H{
+			"id":          task.ID,
+			"title":       task.Title,
+			"description": task.Description,
+			"status":      task.Status,
+			"user_id":     task.UserID,
+			"username":    task.User.Username,
+			"project_id":  task.ProjectID,
+			"due_date":    task.DueDate,
+			"created_at":  task.CreatedAt,
+		},
+		"working_hours_context": workingHoursContext,
+		"current_status": gin.H{
+			"is_working_hour": h.WorkSchedule.IsWorkingHour(now),
+			"is_working_day":  h.WorkSchedule.IsWorkingDay(now),
+			"current_time":    now,
+		},
+		"working_schedule": gin.H{
+			"working_days":    []string{"Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"},
+			"working_hours":   "9:00 AM - 4:00 PM",
+			"weekly_capacity": h.WorkSchedule.WeeklyHours,
+			"lunch_break":     "12:00 PM - 1:00 PM",
+			"timezone":        h.WorkSchedule.TimeZone,
+		},
+	}
+
+	// Add AI analysis if available
+	if aiAnalysis != nil {
+		response["ai_analysis"] = gin.H{
+			"estimated_duration_hours":     aiAnalysis.EstimatedDuration,
+			"deadline_risk":                aiAnalysis.DeadlineRisk,
+			"risk_factors":                 aiAnalysis.RiskFactors,
+			"recommendations":              aiAnalysis.Recommendations,
+			"optimal_start_date":           aiAnalysis.OptimalStartDate,
+			"predicted_completion":         aiAnalysis.PredictedCompletion,
+			"working_hours_until_deadline": aiAnalysis.WorkingHoursUntilDeadline,
+			"is_within_working_hours":      aiAnalysis.IsWithinWorkingHours,
+		}
+	} else {
+		response["ai_analysis"] = gin.H{
+			"status": "AI analysis not available",
+			"reason": "AI service may be disabled or task data insufficient",
+		}
 	}
 
 	c.JSON(http.StatusOK, response)

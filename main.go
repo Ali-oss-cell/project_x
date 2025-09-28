@@ -129,4 +129,5 @@ func setupRoutes(r *gin.Engine, db *gorm.DB) {
 	routes.SetupNotificationRoutes(r, notificationHandler, db)
 	routes.SetupChatRoutes(r, db, wsService, notificationService)
 	routes.SetupHRProblemRoutes(r, db, notificationService)
+	routes.SetupAITimeRoutes(r, db)
 }

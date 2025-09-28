@@ -28,6 +28,11 @@ func SetupTaskRoutes(r *gin.Engine, db *gorm.DB) {
 		// Statistics endpoint (Manager+ only)
 		taskGroup.GET("/statistics", middleware.RequireManagerOrHigher(), taskHandler.GetTaskStatistics)
 
+		// Arabic Working Hours Integration Endpoints
+		taskGroup.GET("/arabic-context", taskHandler.GetTasksWithArabicTimeContext)                                      // Get tasks with Arabic working hours context
+		taskGroup.POST("/arabic-schedule", middleware.RequireHeadOrHigher(), taskHandler.CreateTaskWithArabicScheduling) // Create task with Arabic scheduling optimization
+		taskGroup.GET("/:id/time-analysis", taskHandler.GetTaskTimeAnalysis)                                             // Get AI time analysis for specific task
+
 		// Legacy endpoints (for backward compatibility - can be removed later)
 		// These maintain the old API structure while you migrate frontend
 		taskGroup.POST("/legacy", middleware.RequireHeadOrHigher(), taskHandler.CreateTask)
