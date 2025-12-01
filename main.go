@@ -43,6 +43,15 @@ func main() {
 		&models.HRProblem{},
 		&models.HRProblemComment{},
 		&models.HRProblemUpdate{},
+		// AI Analysis models
+		&models.AIAnalysis{},
+		&models.CollaborativeAIAnalysis{},
+		// Admin Daily Checklist
+		&models.AdminDailyChecklist{},
+		// Password Manager models
+		&models.Credential{},
+		&models.CredentialShare{},
+		&models.CredentialAccessLog{},
 	); err != nil {
 		log.Fatal("Failed to migrate database:", err)
 	}
@@ -130,4 +139,6 @@ func setupRoutes(r *gin.Engine, db *gorm.DB) {
 	routes.SetupChatRoutes(r, db, wsService, notificationService)
 	routes.SetupHRProblemRoutes(r, db, notificationService)
 	routes.SetupAITimeRoutes(r, db)
+	routes.SetupAdminRoutes(r, db)
+	routes.SetupPasswordManagerRoutes(r, db)
 }
