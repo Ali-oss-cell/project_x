@@ -25,6 +25,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		Password   string `json:"password" binding:"required"`
 		Role       string `json:"role" binding:"required"`
 		Department string `json:"department" binding:"required"`
+		Skills     string `json:"skills"` // JSON array of skills
 	}
 
 	if err := c.ShouldBindJSON(&createUserRequest); err != nil {
@@ -38,6 +39,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 		createUserRequest.Password,
 		createUserRequest.Role,
 		createUserRequest.Department,
+		createUserRequest.Skills,
 	)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -51,6 +53,7 @@ func (h *UserHandler) CreateUser(c *gin.Context) {
 			"username":   user.Username,
 			"role":       user.Role,
 			"department": user.Department,
+			"skills":     user.Skills,
 			"created_at": user.CreatedAt,
 		},
 	})
@@ -77,6 +80,7 @@ func (h *UserHandler) GetUser(c *gin.Context) {
 			"username":   user.Username,
 			"role":       user.Role,
 			"department": user.Department,
+			"skills":     user.Skills,
 			"created_at": user.CreatedAt,
 			"updated_at": user.UpdatedAt,
 		},
@@ -99,6 +103,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 			"username":   user.Username,
 			"role":       user.Role,
 			"department": user.Department,
+			"skills":     user.Skills,
 			"created_at": user.CreatedAt,
 		})
 	}
@@ -128,6 +133,7 @@ func (h *UserHandler) GetUsersByRole(c *gin.Context) {
 			"username":   user.Username,
 			"role":       user.Role,
 			"department": user.Department,
+			"skills":     user.Skills,
 			"created_at": user.CreatedAt,
 		})
 	}
@@ -157,6 +163,7 @@ func (h *UserHandler) GetUsersByDepartment(c *gin.Context) {
 			"username":   user.Username,
 			"role":       user.Role,
 			"department": user.Department,
+			"skills":     user.Skills,
 			"created_at": user.CreatedAt,
 		})
 	}
@@ -230,6 +237,40 @@ func (h *UserHandler) UpdateUserDepartment(c *gin.Context) {
 			"username":   user.Username,
 			"role":       user.Role,
 			"department": user.Department,
+		},
+	})
+}
+
+// UpdateUserSkills updates a user's skills (Admin or self)
+func (h *UserHandler) UpdateUserSkills(c *gin.Context) {
+	userID, err := strconv.ParseUint(c.Param("id"), 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	var updateRequest struct {
+		Skills string `json:"skills" binding:"required"` // JSON array of skills
+	}
+
+	if err := c.ShouldBindJSON(&updateRequest); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userService := services.NewUserService(h.DB)
+	user, err := userService.UpdateUserSkills(uint(userID), updateRequest.Skills)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "User skills updated successfully",
+		"user": gin.H{
+			"id":       user.ID,
+			"username": user.Username,
+			"skills":   user.Skills,
 		},
 	})
 }

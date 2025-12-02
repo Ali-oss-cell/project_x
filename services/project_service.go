@@ -67,17 +67,24 @@ func (s *ProjectService) GetProjectWithDetails(projectID uint) (*models.Project,
 	return &project, err
 }
 
-// GetProjectMembers returns all members of a project
-func (s *ProjectService) GetProjectMembers(projectID uint) ([]models.User, error) {
+// GetProjectMembers returns all members of a project with their project roles and job roles
+func (s *ProjectService) GetProjectMembers(projectID uint) ([]models.User, []models.UserProject, error) {
 	var users []models.User
+	var userProjects []models.UserProject
+
 	err := s.DB.Joins("JOIN user_projects ON users.id = user_projects.user_id").
 		Where("user_projects.project_id = ?", projectID).
 		Find(&users).Error
-	return users, err
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = s.DB.Where("project_id = ?", projectID).Find(&userProjects).Error
+	return users, userProjects, err
 }
 
-// AddUserToProject adds a user to a project
-func (s *ProjectService) AddUserToProject(userID, projectID uint, role string) error {
+// AddUserToProject adds a user to a project with role and job role
+func (s *ProjectService) AddUserToProject(userID, projectID uint, role string, jobRole string) error {
 	// Check if project exists
 	var project models.Project
 	if err := s.DB.First(&project, projectID).Error; err != nil {
@@ -97,7 +104,7 @@ func (s *ProjectService) AddUserToProject(userID, projectID uint, role string) e
 	}
 
 	// Validate role
-	validRoles := []string{"manager", "head", "employee"}
+	validRoles := []string{"manager", "head", "employee", "member"}
 	validRole := false
 	for _, r := range validRoles {
 		if r == role {
@@ -113,6 +120,7 @@ func (s *ProjectService) AddUserToProject(userID, projectID uint, role string) e
 		ProjectID: projectID,
 		UserID:    userID,
 		Role:      role,
+		JobRole:   jobRole,
 		JoinedAt:  time.Now(),
 	}
 

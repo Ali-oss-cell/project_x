@@ -37,10 +37,12 @@ const (
 
 type User struct {
 	gorm.Model
-	Username   string `gorm:"unique;not null;index;type:varchar(255) COLLATE \"default\""`
-	Password   string `gorm:"not null;type:varchar(255)"`
-	Role       Role   `gorm:"not null;index;type:varchar(50)"`
-	Department string `gorm:"not null;index;type:varchar(255) COLLATE \"default\""`
+	Username   string     `gorm:"unique;not null;index;type:varchar(255) COLLATE \"default\""`
+	Password   string     `gorm:"not null;type:varchar(255)"`
+	Role       Role       `gorm:"not null;index;type:varchar(50)"`
+	Department string     `gorm:"not null;index;type:varchar(255) COLLATE \"default\""`
+	Skills     string     `gorm:"type:json"` // JSON array of skills: ["UX/UI Design", "Frontend Development", etc.]
+	LastLogin  *time.Time `gorm:"index"`     // Last login timestamp
 
 	// Relationships
 	Tasks              []Task              `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`
@@ -128,7 +130,8 @@ type UserProject struct {
 	UserID    uint      `gorm:"primaryKey;index"`
 	ProjectID uint      `gorm:"primaryKey;index"`
 	JoinedAt  time.Time `gorm:"not null;index"`
-	Role      string    `gorm:"not null;default:'member';index;type:varchar(100)"` // member, lead, contributor, etc.
+	Role      string    `gorm:"not null;default:'member';index;type:varchar(100)"` // Project management role: manager, head, employee, member
+	JobRole   string    `gorm:"type:varchar(100)"`                                 // Project-specific job role: "UX/UI Designer", "Backend Developer", etc.
 
 	// Relationships
 	User    User    `gorm:"foreignKey:UserID;constraint:OnDelete:CASCADE"`

@@ -29,5 +29,6 @@ func SetupUserRoutes(r *gin.Engine, db *gorm.DB) {
 		userGroup.GET("/:id", middleware.RequireSelfOrAdmin(), userHandler.GetUser)
 		userGroup.GET("/:id/stats", middleware.RequireSelfOrAdmin(), userHandler.GetUserStats)
 		userGroup.PATCH("/:id/password", middleware.RequireSelfOrAdmin(), userHandler.UpdateUserPassword)
+		userGroup.PATCH("/:id/skills", middleware.RequireSelfOrAdmin(), userHandler.UpdateUserSkills)
 	}
 }

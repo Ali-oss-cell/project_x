@@ -17,7 +17,7 @@ func NewUserService(db *gorm.DB) *UserService {
 }
 
 // CreateUser creates a new user with validation
-func (s *UserService) CreateUser(username, password, role, department string) (*models.User, error) {
+func (s *UserService) CreateUser(username, password, role, department string, skills string) (*models.User, error) {
 	// Validate role
 	if !s.isValidRole(role) {
 		return nil, errors.New("invalid role")
@@ -41,6 +41,7 @@ func (s *UserService) CreateUser(username, password, role, department string) (*
 		Password:   string(hashedPassword),
 		Role:       models.Role(role),
 		Department: department,
+		Skills:     skills,
 	}
 
 	if err := s.DB.Create(user).Error; err != nil {
@@ -126,6 +127,21 @@ func (s *UserService) UpdateUserDepartment(userID uint, newDepartment string) (*
 	}
 
 	user.Department = newDepartment
+	if err := s.DB.Save(&user).Error; err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// UpdateUserSkills updates a user's skills
+func (s *UserService) UpdateUserSkills(userID uint, skills string) (*models.User, error) {
+	var user models.User
+	if err := s.DB.First(&user, userID).Error; err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	user.Skills = skills
 	if err := s.DB.Save(&user).Error; err != nil {
 		return nil, err
 	}

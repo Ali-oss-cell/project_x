@@ -28,6 +28,14 @@ func SetupTaskRoutes(r *gin.Engine, db *gorm.DB) {
 		// Statistics endpoint (Manager+ only)
 		taskGroup.GET("/statistics", middleware.RequireManagerOrHigher(), taskHandler.GetTaskStatistics)
 
+		// Analytics endpoints (Manager+ only)
+		taskGroup.GET("/analytics/department", middleware.RequireManagerOrHigher(), taskHandler.GetDepartmentAnalytics)
+		taskGroup.GET("/analytics/trends", middleware.RequireManagerOrHigher(), taskHandler.GetTaskCompletionTrends)
+		taskGroup.GET("/analytics/advanced", middleware.RequireManagerOrHigher(), taskHandler.GetAdvancedAnalytics)
+
+		// Export reports (Manager+ only)
+		taskGroup.GET("/export", middleware.RequireManagerOrHigher(), taskHandler.ExportReport)
+
 		// Arabic Working Hours Integration Endpoints
 		taskGroup.GET("/arabic-context", taskHandler.GetTasksWithArabicTimeContext)                                      // Get tasks with Arabic working hours context
 		taskGroup.POST("/arabic-schedule", middleware.RequireHeadOrHigher(), taskHandler.CreateTaskWithArabicScheduling) // Create task with Arabic scheduling optimization

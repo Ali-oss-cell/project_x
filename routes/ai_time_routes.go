@@ -36,4 +36,7 @@ func SetupAITimeRoutes(r *gin.Engine, db *gorm.DB) {
 
 	// 💡 **التوصيات المدعومة بالذكاء الاصطناعي** - AI-Powered Recommendations (Manager+, HR, Admin only)
 	aiTimeGroup.GET("/recommendations", aiTimeHandler.GetTimeOptimizationRecommendations)
+
+	// 📊 **مقاييس أداء الذكاء الاصطناعي** - AI Performance Metrics (Manager+, HR, Admin only)
+	aiTimeGroup.GET("/performance", aiTimeHandler.GetAIPerformanceMetrics)
 }

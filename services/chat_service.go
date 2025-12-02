@@ -2,6 +2,8 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"log"
 	"project-x/models"
 	"strconv"
 	"time"
@@ -12,6 +14,7 @@ import (
 type ChatService struct {
 	db               *gorm.DB
 	websocketService *WebSocketService
+	aiChatService    *AIChatService
 }
 
 func NewChatService(db *gorm.DB, wsService *WebSocketService, notificationService *NotificationService) *ChatService {
@@ -19,6 +22,11 @@ func NewChatService(db *gorm.DB, wsService *WebSocketService, notificationServic
 		db:               db,
 		websocketService: wsService,
 	}
+}
+
+// SetAIChatService sets the AI chat service
+func (cs *ChatService) SetAIChatService(aiChatService *AIChatService) {
+	cs.aiChatService = aiChatService
 }
 
 // CreateTeamChat creates the main team chat room
@@ -103,7 +111,55 @@ func (cs *ChatService) SendMessage(roomID, senderID uint, content string) (*mode
 		})
 	}
 
+	// Check if this is an AI message and process it
+	if cs.aiChatService != nil && cs.aiChatService.IsAIMessage(content, roomID) {
+		go cs.processAIMessage(roomID, senderID, content)
+	}
+
 	return message, nil
+}
+
+// processAIMessage processes AI messages asynchronously
+func (cs *ChatService) processAIMessage(roomID, senderID uint, content string) {
+	// Process AI message
+	aiResponse, err := cs.aiChatService.ProcessAIMessage(senderID, content, roomID)
+	if err != nil {
+		log.Printf("Error processing AI message: %v", err)
+		return
+	}
+
+	// Create AI user (system user) for AI messages
+	// We'll use a special sender ID (0) or create a system user
+	// For now, we'll create a message with a special marker
+	aiMessage := &models.ChatMessage{
+		ChatRoomID: roomID,
+		SenderID:   senderID, // Keep original sender for now, can be enhanced
+		Content:    aiResponse.Message,
+		Metadata:   fmt.Sprintf(`{"ai_response":true,"action":"%s"}`, aiResponse.Action),
+	}
+
+	if err := cs.db.Create(aiMessage).Error; err != nil {
+		log.Printf("Error saving AI response: %v", err)
+		return
+	}
+
+	// Broadcast AI response via WebSocket
+	if cs.websocketService != nil {
+		cs.websocketService.BroadcastToRoom(strconv.FormatUint(uint64(roomID), 10), Notification{
+			Type:    "ai_message",
+			Title:   "AI Assistant",
+			Message: aiResponse.Message,
+			Data: map[string]interface{}{
+				"message_id": aiMessage.ID,
+				"room_id":    roomID,
+				"sender":     "AI Assistant",
+				"content":    aiResponse.Message,
+				"action":     aiResponse.Action,
+				"data":       aiResponse.Data,
+			},
+			Timestamp: time.Now(),
+		})
+	}
 }
 
 // GetMessages retrieves messages from the team chat

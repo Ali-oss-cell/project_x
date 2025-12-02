@@ -270,6 +270,35 @@ func (s *TaskService) UpdateTaskStatus(taskID uint, status models.TaskStatus) er
 	return s.DB.Model(&models.Task{}).Where("id = ?", taskID).Update("status", status).Error
 }
 
+// UpdateAIAnalysisOnTaskCompletion updates AI analysis with actual results when task completes
+func (s *TaskService) UpdateAIAnalysisOnTaskCompletion(taskID uint) error {
+	// Get the task
+	var task models.Task
+	if err := s.DB.First(&task, taskID).Error; err != nil {
+		return err
+	}
+
+	// Only update if task is completed
+	if task.Status != models.TaskStatusCompleted {
+		return nil
+	}
+
+	// Calculate actual duration in hours
+	if task.CreatedAt.IsZero() || task.UpdatedAt.IsZero() {
+		return nil // Can't calculate duration
+	}
+
+	actualDuration := int(task.UpdatedAt.Sub(task.CreatedAt).Hours())
+	if actualDuration < 1 {
+		actualDuration = 1 // Minimum 1 hour
+	}
+	actualCompletion := task.UpdatedAt
+
+	// Update AI analysis
+	aiOptimizer := NewAITimeOptimizer(s.DB)
+	return aiOptimizer.UpdateAIAnalysisWithActual(taskID, actualDuration, actualCompletion)
+}
+
 // UpdateCollaborativeTaskStatus updates collaborative task status
 func (s *TaskService) UpdateCollaborativeTaskStatus(taskID uint, status models.TaskStatus) error {
 	return s.DB.Model(&models.CollaborativeTask{}).Where("id = ?", taskID).Update("status", status).Error
@@ -897,4 +926,306 @@ func (s *TaskService) sendCollaborativeTaskUpdateNotificationToHigherLevels(task
 			s.notificationService.SendCollaborativeTaskUpdatedNotification(task, &user, updatedByUser, oldTitle, oldDescription, oldDueDate)
 		}
 	}
+}
+
+// GetDepartmentAnalytics returns analytics for a specific department or all departments
+func (s *TaskService) GetDepartmentAnalytics(department string, period string) (map[string]interface{}, error) {
+	var startDate, endDate time.Time
+	now := time.Now()
+
+	// Calculate date range based on period
+	switch period {
+	case "weekly":
+		startDate = now.AddDate(0, 0, -7)
+		endDate = now
+	case "monthly":
+		startDate = now.AddDate(0, -1, 0)
+		endDate = now
+	default:
+		startDate = now.AddDate(0, 0, -30) // Default to last 30 days
+		endDate = now
+	}
+
+	var result map[string]interface{}
+
+	if department == "" || department == "all" {
+		// Get analytics for all departments
+		result = make(map[string]interface{})
+		departments := []string{}
+
+		// Get all unique departments
+		s.DB.Model(&models.User{}).Distinct("department").Pluck("department", &departments)
+
+		departmentStats := []map[string]interface{}{}
+
+		for _, dept := range departments {
+			stats := s.getDepartmentStats(dept, startDate, endDate)
+			departmentStats = append(departmentStats, stats)
+		}
+
+		result["departments"] = departmentStats
+		result["total_departments"] = len(departments)
+		result["period"] = map[string]interface{}{
+			"type":       period,
+			"start_date": startDate,
+			"end_date":   endDate,
+		}
+	} else {
+		// Get analytics for specific department
+		stats := s.getDepartmentStats(department, startDate, endDate)
+		result = stats
+	}
+
+	return result, nil
+}
+
+// Helper function to get stats for a single department
+func (s *TaskService) getDepartmentStats(department string, startDate, endDate time.Time) map[string]interface{} {
+	// Get all users in this department
+	var users []models.User
+	s.DB.Where("department = ?", department).Find(&users)
+	userIDs := make([]uint, len(users))
+	for i, user := range users {
+		userIDs[i] = user.ID
+	}
+
+	// Count tasks for users in this department
+	var totalTasks, pendingTasks, inProgressTasks, completedTasks, cancelledTasks int64
+	var tasksInPeriod, completedInPeriod int64
+
+	if len(userIDs) > 0 {
+		s.DB.Model(&models.Task{}).Where("user_id IN ?", userIDs).Count(&totalTasks)
+		s.DB.Model(&models.Task{}).Where("user_id IN ? AND status = ?", userIDs, models.TaskStatusPending).Count(&pendingTasks)
+		s.DB.Model(&models.Task{}).Where("user_id IN ? AND status = ?", userIDs, models.TaskStatusInProgress).Count(&inProgressTasks)
+		s.DB.Model(&models.Task{}).Where("user_id IN ? AND status = ?", userIDs, models.TaskStatusCompleted).Count(&completedTasks)
+		s.DB.Model(&models.Task{}).Where("user_id IN ? AND status = ?", userIDs, models.TaskStatusCancelled).Count(&cancelledTasks)
+		s.DB.Model(&models.Task{}).Where("user_id IN ? AND created_at BETWEEN ? AND ?", userIDs, startDate, endDate).Count(&tasksInPeriod)
+		s.DB.Model(&models.Task{}).Where("user_id IN ? AND status = ? AND updated_at BETWEEN ? AND ?", userIDs, models.TaskStatusCompleted, startDate, endDate).Count(&completedInPeriod)
+	}
+
+	// Collaborative tasks
+	var totalCollabTasks, pendingCollabTasks, inProgressCollabTasks, completedCollabTasks int64
+	if len(userIDs) > 0 {
+		s.DB.Model(&models.CollaborativeTask{}).Where("lead_user_id IN ?", userIDs).Count(&totalCollabTasks)
+		s.DB.Model(&models.CollaborativeTask{}).Where("lead_user_id IN ? AND status = ?", userIDs, models.TaskStatusPending).Count(&pendingCollabTasks)
+		s.DB.Model(&models.CollaborativeTask{}).Where("lead_user_id IN ? AND status = ?", userIDs, models.TaskStatusInProgress).Count(&inProgressCollabTasks)
+		s.DB.Model(&models.CollaborativeTask{}).Where("lead_user_id IN ? AND status = ?", userIDs, models.TaskStatusCompleted).Count(&completedCollabTasks)
+	}
+
+	totalAllTasks := totalTasks + totalCollabTasks
+	totalCompleted := completedTasks + completedCollabTasks
+	completionRate := 0.0
+	if totalAllTasks > 0 {
+		completionRate = float64(totalCompleted) / float64(totalAllTasks) * 100
+	}
+
+	return map[string]interface{}{
+		"department": department,
+		"user_count": len(users),
+		"regular_tasks": map[string]interface{}{
+			"total":               totalTasks,
+			"pending":             pendingTasks,
+			"in_progress":         inProgressTasks,
+			"completed":           completedTasks,
+			"cancelled":           cancelledTasks,
+			"created_in_period":   tasksInPeriod,
+			"completed_in_period": completedInPeriod,
+		},
+		"collaborative_tasks": map[string]interface{}{
+			"total":       totalCollabTasks,
+			"pending":     pendingCollabTasks,
+			"in_progress": inProgressCollabTasks,
+			"completed":   completedCollabTasks,
+		},
+		"overall": map[string]interface{}{
+			"total_tasks":     totalAllTasks,
+			"completed_tasks": totalCompleted,
+			"completion_rate": completionRate,
+		},
+		"period": map[string]interface{}{
+			"start_date": startDate,
+			"end_date":   endDate,
+		},
+	}
+}
+
+// GetTaskCompletionTrends returns task completion trends over time
+func (s *TaskService) GetTaskCompletionTrends(startDate, endDate time.Time, groupBy string) (map[string]interface{}, error) {
+	// groupBy can be: "day", "week", "month"
+	if groupBy == "" {
+		groupBy = "day"
+	}
+
+	trends := []map[string]interface{}{}
+	currentDate := startDate
+
+	for currentDate.Before(endDate) || currentDate.Equal(endDate) {
+		var periodStart, periodEnd time.Time
+
+		switch groupBy {
+		case "day":
+			periodStart = time.Date(currentDate.Year(), currentDate.Month(), currentDate.Day(), 0, 0, 0, 0, currentDate.Location())
+			periodEnd = periodStart.AddDate(0, 0, 1).Add(-time.Second)
+			currentDate = currentDate.AddDate(0, 0, 1)
+		case "week":
+			// Start of week (Sunday)
+			weekday := int(currentDate.Weekday())
+			periodStart = currentDate.AddDate(0, 0, -weekday)
+			periodStart = time.Date(periodStart.Year(), periodStart.Month(), periodStart.Day(), 0, 0, 0, 0, periodStart.Location())
+			periodEnd = periodStart.AddDate(0, 0, 7).Add(-time.Second)
+			currentDate = currentDate.AddDate(0, 0, 7)
+		case "month":
+			periodStart = time.Date(currentDate.Year(), currentDate.Month(), 1, 0, 0, 0, 0, currentDate.Location())
+			periodEnd = periodStart.AddDate(0, 1, 0).Add(-time.Second)
+			currentDate = currentDate.AddDate(0, 1, 0)
+		}
+
+		// Count tasks created in this period
+		var createdTasks int64
+		s.DB.Model(&models.Task{}).Where("created_at BETWEEN ? AND ?", periodStart, periodEnd).Count(&createdTasks)
+
+		// Count tasks completed in this period
+		var completedTasks int64
+		s.DB.Model(&models.Task{}).Where("status = ? AND updated_at BETWEEN ? AND ?", models.TaskStatusCompleted, periodStart, periodEnd).Count(&completedTasks)
+
+		// Count collaborative tasks
+		var createdCollabTasks, completedCollabTasks int64
+		s.DB.Model(&models.CollaborativeTask{}).Where("created_at BETWEEN ? AND ?", periodStart, periodEnd).Count(&createdCollabTasks)
+		s.DB.Model(&models.CollaborativeTask{}).Where("status = ? AND updated_at BETWEEN ? AND ?", models.TaskStatusCompleted, periodStart, periodEnd).Count(&completedCollabTasks)
+
+		completionRate := 0.0
+		totalCreated := createdTasks + createdCollabTasks
+		if totalCreated > 0 {
+			completionRate = float64(completedTasks+completedCollabTasks) / float64(totalCreated) * 100
+		}
+
+		trends = append(trends, map[string]interface{}{
+			"period": map[string]interface{}{
+				"start": periodStart,
+				"end":   periodEnd,
+				"label": s.formatPeriodLabel(periodStart, groupBy),
+			},
+			"created": map[string]interface{}{
+				"regular":       createdTasks,
+				"collaborative": createdCollabTasks,
+				"total":         createdTasks + createdCollabTasks,
+			},
+			"completed": map[string]interface{}{
+				"regular":       completedTasks,
+				"collaborative": completedCollabTasks,
+				"total":         completedTasks + completedCollabTasks,
+			},
+			"completion_rate": completionRate,
+		})
+
+		if currentDate.After(endDate) {
+			break
+		}
+	}
+
+	return map[string]interface{}{
+		"trends": trends,
+		"period": map[string]interface{}{
+			"start_date": startDate,
+			"end_date":   endDate,
+			"group_by":   groupBy,
+		},
+		"summary": map[string]interface{}{
+			"total_periods": len(trends),
+		},
+	}, nil
+}
+
+// Helper to format period label
+func (s *TaskService) formatPeriodLabel(date time.Time, groupBy string) string {
+	switch groupBy {
+	case "day":
+		return date.Format("2006-01-02")
+	case "week":
+		weekStart := date
+		weekday := int(date.Weekday())
+		weekStart = date.AddDate(0, 0, -weekday)
+		weekEnd := weekStart.AddDate(0, 0, 6)
+		return weekStart.Format("Jan 2") + " - " + weekEnd.Format("Jan 2, 2006")
+	case "month":
+		return date.Format("January 2006")
+	default:
+		return date.Format("2006-01-02")
+	}
+}
+
+// GetAdvancedAnalytics returns analytics with combined filters
+func (s *TaskService) GetAdvancedAnalytics(filters map[string]interface{}) (map[string]interface{}, error) {
+	// Extract filters
+	userID, _ := filters["user_id"].(uint)
+	projectID, _ := filters["project_id"].(uint)
+	department, _ := filters["department"].(string)
+	startDate, _ := filters["start_date"].(time.Time)
+	endDate, _ := filters["end_date"].(time.Time)
+	status, _ := filters["status"].(string)
+
+	// Build query
+	query := s.DB.Model(&models.Task{})
+
+	if userID > 0 {
+		query = query.Where("user_id = ?", userID)
+	}
+
+	if projectID > 0 {
+		query = query.Where("project_id = ?", projectID)
+	}
+
+	if department != "" {
+		// Get user IDs in this department
+		var users []models.User
+		s.DB.Where("department = ?", department).Find(&users)
+		userIDs := make([]uint, len(users))
+		for i, user := range users {
+			userIDs[i] = user.ID
+		}
+		if len(userIDs) > 0 {
+			query = query.Where("user_id IN ?", userIDs)
+		} else {
+			// No users in department, return empty result
+			return map[string]interface{}{
+				"filters": filters,
+				"statistics": map[string]interface{}{
+					"total_tasks":     0,
+					"completed_tasks": 0,
+					"completion_rate": 0.0,
+				},
+			}, nil
+		}
+	}
+
+	if !startDate.IsZero() {
+		query = query.Where("created_at >= ?", startDate)
+	}
+
+	if !endDate.IsZero() {
+		query = query.Where("created_at <= ?", endDate)
+	}
+
+	if status != "" {
+		query = query.Where("status = ?", status)
+	}
+
+	// Get statistics
+	var totalTasks, completedTasks int64
+	query.Count(&totalTasks)
+	query.Where("status = ?", models.TaskStatusCompleted).Count(&completedTasks)
+
+	completionRate := 0.0
+	if totalTasks > 0 {
+		completionRate = float64(completedTasks) / float64(totalTasks) * 100
+	}
+
+	return map[string]interface{}{
+		"filters": filters,
+		"statistics": map[string]interface{}{
+			"total_tasks":     totalTasks,
+			"completed_tasks": completedTasks,
+			"completion_rate": completionRate,
+		},
+	}, nil
 }

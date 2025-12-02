@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"project-x/config"
 	"project-x/models"
@@ -131,8 +132,136 @@ func (a *AITimeOptimizer) AnalyzeTaskTimeRisks() ([]TimeAnalysis, error) {
 	return analyses, nil
 }
 
+// SaveAIAnalysis saves AI prediction to database for learning and tracking
+func (a *AITimeOptimizer) SaveAIAnalysis(task models.Task, analysis *TimeAnalysis) error {
+	// Convert RiskFactors and Recommendations to JSON
+	riskFactorsJSON, err := json.Marshal(analysis.RiskFactors)
+	if err != nil {
+		return fmt.Errorf("failed to marshal risk factors: %v", err)
+	}
+
+	recommendationsJSON, err := json.Marshal(analysis.Recommendations)
+	if err != nil {
+		return fmt.Errorf("failed to marshal recommendations: %v", err)
+	}
+
+	aiAnalysis := models.AIAnalysis{
+		TaskID:                    task.ID,
+		TaskType:                  "regular",
+		PredictedDuration:         analysis.EstimatedDuration,
+		PredictedCompletion:       analysis.PredictedCompletion,
+		DeadlineRisk:              analysis.DeadlineRisk,
+		RiskFactors:               string(riskFactorsJSON),
+		Recommendations:           string(recommendationsJSON),
+		OptimalStartDate:          analysis.OptimalStartDate,
+		WorkingHoursUntilDeadline: analysis.WorkingHoursUntilDeadline,
+		AnalysisDate:              time.Now(),
+		ModelVersion:              "gemini-2.0-flash",
+		ConfidenceScore:           85, // Default confidence, can be enhanced
+	}
+
+	return a.DB.Create(&aiAnalysis).Error
+}
+
+// GetCachedAnalysis retrieves cached AI analysis if available (within 1 hour)
+func (a *AITimeOptimizer) GetCachedAnalysis(taskID uint) (*TimeAnalysis, error) {
+	oneHourAgo := time.Now().Add(-1 * time.Hour)
+
+	var aiAnalysis models.AIAnalysis
+	err := a.DB.Where("task_id = ? AND created_at > ?", taskID, oneHourAgo).
+		Order("created_at DESC").
+		First(&aiAnalysis).Error
+
+	if err != nil {
+		return nil, err // No cached analysis found
+	}
+
+	// Convert AIAnalysis back to TimeAnalysis
+	var riskFactors []string
+	var recommendations []string
+
+	if aiAnalysis.RiskFactors != "" {
+		json.Unmarshal([]byte(aiAnalysis.RiskFactors), &riskFactors)
+	}
+	if aiAnalysis.Recommendations != "" {
+		json.Unmarshal([]byte(aiAnalysis.Recommendations), &recommendations)
+	}
+
+	// Get the task to return complete TimeAnalysis
+	var task models.Task
+	if err := a.DB.First(&task, taskID).Error; err != nil {
+		return nil, err
+	}
+
+	return &TimeAnalysis{
+		TaskID:                    aiAnalysis.TaskID,
+		TaskTitle:                 task.Title,
+		EstimatedDuration:         aiAnalysis.PredictedDuration,
+		DeadlineRisk:              aiAnalysis.DeadlineRisk,
+		RiskFactors:               riskFactors,
+		Recommendations:           recommendations,
+		OptimalStartDate:          aiAnalysis.OptimalStartDate,
+		PredictedCompletion:       aiAnalysis.PredictedCompletion,
+		WorkingHoursUntilDeadline: aiAnalysis.WorkingHoursUntilDeadline,
+		IsWithinWorkingHours:      a.WorkSchedule.IsWorkingHour(time.Now()),
+	}, nil
+}
+
+// UpdateAIAnalysisWithActual updates AI analysis with actual completion data
+func (a *AITimeOptimizer) UpdateAIAnalysisWithActual(taskID uint, actualDuration int, actualCompletion time.Time) error {
+	// Find the most recent AI analysis for this task
+	var aiAnalysis models.AIAnalysis
+	err := a.DB.Where("task_id = ?", taskID).
+		Order("created_at DESC").
+		First(&aiAnalysis).Error
+
+	if err != nil {
+		return fmt.Errorf("no AI analysis found for task %d: %v", taskID, err)
+	}
+
+	// Skip if already updated
+	if aiAnalysis.ActualDuration != nil {
+		return nil // Already updated
+	}
+
+	// Calculate accuracy
+	durationDiff := actualDuration - aiAnalysis.PredictedDuration
+	accuracyScore := 100.0 - (math.Abs(float64(durationDiff)) / float64(aiAnalysis.PredictedDuration) * 100)
+	if accuracyScore < 0 {
+		accuracyScore = 0
+	}
+	if accuracyScore > 100 {
+		accuracyScore = 100
+	}
+
+	wasAccurate := accuracyScore >= 70.0 // 70% accuracy threshold
+
+	// Update with actual results
+	aiAnalysis.ActualDuration = &actualDuration
+	aiAnalysis.ActualCompletion = &actualCompletion
+	aiAnalysis.WasAccurate = &wasAccurate
+	aiAnalysis.AccuracyScore = &accuracyScore
+	aiAnalysis.DurationDifference = &durationDiff
+
+	if err := a.DB.Save(&aiAnalysis).Error; err != nil {
+		return fmt.Errorf("failed to update AI analysis: %v", err)
+	}
+
+	log.Printf("✅ Updated AI analysis for task %d: Accuracy %.1f%%, Was Accurate: %v",
+		taskID, accuracyScore, wasAccurate)
+
+	return nil
+}
+
 // analyzeIndividualTask performs AI analysis on a single task with Arabic working hours
 func (a *AITimeOptimizer) analyzeIndividualTask(task models.Task) (*TimeAnalysis, error) {
+	// Check for cached analysis first (within 1 hour)
+	cachedAnalysis, err := a.GetCachedAnalysis(task.ID)
+	if err == nil && cachedAnalysis != nil {
+		log.Printf("📦 Using cached AI analysis for task %d", task.ID)
+		return cachedAnalysis, nil
+	}
+
 	ctx := context.Background()
 
 	// Gather historical data for similar tasks
@@ -171,7 +300,17 @@ func (a *AITimeOptimizer) analyzeIndividualTask(task models.Task) (*TimeAnalysis
 	analysis.IsWithinWorkingHours = isWithinWorkingHours
 
 	// Calculate optimal start date based on Arabic working schedule
-	analysis.OptimalStartDate = a.WorkSchedule.GetOptimalTaskSchedule(float64(analysis.EstimatedDuration), *task.DueDate)
+	if task.DueDate != nil {
+		analysis.OptimalStartDate = a.WorkSchedule.GetOptimalTaskSchedule(float64(analysis.EstimatedDuration), *task.DueDate)
+	}
+
+	// Save AI analysis to database for learning and tracking
+	if err := a.SaveAIAnalysis(task, analysis); err != nil {
+		log.Printf("⚠️ Warning: Failed to save AI analysis for task %d: %v", task.ID, err)
+		// Continue even if save fails
+	} else {
+		log.Printf("💾 Saved AI analysis for task %d", task.ID)
+	}
 
 	return analysis, nil
 }
@@ -454,6 +593,33 @@ func (a *AITimeOptimizer) getHistoricalTaskData(task models.Task) (map[string]in
 		Count(&currentWorkload)
 
 	data["current_workload"] = currentWorkload
+
+	// Get AI prediction accuracy for this user
+	var aiAccuracy struct {
+		AvgAccuracyScore    float64
+		TotalPredictions    int64
+		AccuratePredictions int64
+		AvgDurationDiff     float64
+	}
+
+	a.DB.Raw(`
+		SELECT 
+			COALESCE(AVG(aa.accuracy_score), 0) as avg_accuracy_score,
+			COUNT(*) as total_predictions,
+			COUNT(CASE WHEN aa.was_accurate = true THEN 1 END) as accurate_predictions,
+			COALESCE(AVG(aa.duration_difference), 0) as avg_duration_diff
+		FROM ai_analyses aa
+		JOIN tasks t ON aa.task_id = t.id
+		WHERE t.user_id = ? AND aa.actual_duration IS NOT NULL
+	`, task.UserID).Scan(&aiAccuracy)
+
+	data["ai_avg_accuracy"] = aiAccuracy.AvgAccuracyScore
+	data["ai_total_predictions"] = aiAccuracy.TotalPredictions
+	data["ai_accuracy_rate"] = 0.0
+	if aiAccuracy.TotalPredictions > 0 {
+		data["ai_accuracy_rate"] = float64(aiAccuracy.AccuratePredictions) / float64(aiAccuracy.TotalPredictions) * 100
+	}
+	data["ai_avg_duration_diff"] = aiAccuracy.AvgDurationDiff
 
 	// Get project timeline pressure
 	if task.ProjectID != nil {

@@ -38,6 +38,12 @@ func SetupProjectRoutes(router *gin.Engine, db *gorm.DB) {
 		// Get project statistics (project members only)
 		projects.GET("/:id/statistics", middleware.AuthMiddleware(db), projectHandler.GetProjectStatistics)
 
+		// Generate tasks with AI (Manager/Admin only) - Returns preview only
+		projects.POST("/:id/generate-tasks", middleware.AuthMiddleware(db), middleware.RequireManagerOrHigher(), projectHandler.GenerateProjectTasksWithAI)
+
+		// Confirm and create tasks after review (Manager/Admin only)
+		projects.POST("/:id/confirm-tasks", middleware.AuthMiddleware(db), middleware.RequireManagerOrHigher(), projectHandler.ConfirmAndCreateProjectTasks)
+
 		// Delete project (Admin only)
 		projects.DELETE("/:id", middleware.AuthMiddleware(db), middleware.RequireAdmin(), projectHandler.DeleteProject)
 	}

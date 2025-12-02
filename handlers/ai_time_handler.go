@@ -485,6 +485,39 @@ func (h *AITimeHandler) GetTimeOptimizationRecommendations(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetAIPerformanceMetrics returns AI prediction accuracy metrics
+func (h *AITimeHandler) GetAIPerformanceMetrics(c *gin.Context) {
+	userRole, exists := c.Get("userRole")
+	if !exists || (userRole != "admin" && userRole != "manager" && userRole != "hr") {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Access denied. Only Manager+, HR, or Admin can access AI performance metrics"})
+		return
+	}
+
+	var metrics struct {
+		TotalPredictions     int64   `json:"total_predictions"`
+		CompletedPredictions int64   `json:"completed_predictions"`
+		AvgAccuracyScore     float64 `json:"avg_accuracy_score"`
+		AccuracyRate         float64 `json:"accuracy_rate"`
+		AvgDurationDiff      float64 `json:"avg_duration_difference_hours"`
+	}
+
+	h.DB.Raw(`
+		SELECT 
+			COUNT(*) as total_predictions,
+			COUNT(CASE WHEN actual_duration IS NOT NULL THEN 1 END) as completed_predictions,
+			COALESCE(AVG(accuracy_score), 0) as avg_accuracy_score,
+			COALESCE(COUNT(CASE WHEN was_accurate = true THEN 1 END)::float / NULLIF(COUNT(CASE WHEN actual_duration IS NOT NULL THEN 1 END), 0) * 100, 0) as accuracy_rate,
+			COALESCE(AVG(duration_difference), 0) as avg_duration_difference_hours
+		FROM ai_analyses
+	`).Scan(&metrics)
+
+	c.JSON(http.StatusOK, gin.H{
+		"metrics":      metrics,
+		"generated_at": time.Now(),
+		"message":      "AI performance metrics retrieved successfully",
+	})
+}
+
 // Helper functions
 
 func (h *AITimeHandler) countTasksByRisk(analyses []services.TimeAnalysis, risk string) int {

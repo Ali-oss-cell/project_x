@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"project-x/config"
 	"project-x/models"
 	"project-x/services"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -538,6 +541,14 @@ func (h *TaskHandler) UpdateTaskStatus(c *gin.Context) {
 		return
 	}
 
+	// Update AI analysis with actual results if task is completed
+	if updateRequest.Status == string(models.TaskStatusCompleted) {
+		if err := h.TaskService.UpdateAIAnalysisOnTaskCompletion(uint(taskID)); err != nil {
+			log.Printf("Warning: Failed to update AI analysis for task %d: %v", taskID, err)
+			// Don't fail the request, just log the warning
+		}
+	}
+
 	// Send notification for status change
 	var currentUser models.User
 	if err := h.DB.First(&currentUser, currentUserID.(uint)).Error; err == nil {
@@ -607,6 +618,12 @@ func (h *TaskHandler) UpdateCollaborativeTaskStatus(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update collaborative task status"})
 		return
+	}
+
+	// Update AI analysis with actual results if task is completed
+	// Note: Collaborative tasks AI analysis update can be added later if needed
+	if updateRequest.Status == string(models.TaskStatusCompleted) {
+		log.Printf("Note: Collaborative task %d completed - AI analysis update for collaborative tasks not yet implemented", taskID)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Collaborative task status updated successfully"})
@@ -689,7 +706,43 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	}
 
 	userID, _ := c.Get("userID")
+	userRole, _ := c.Get("userRole")
 
+	// Get the task to check project membership for Heads
+	var task models.Task
+	if err := h.DB.First(&task, taskID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Task not found"})
+		return
+	}
+
+	// Admin/Manager can delete any task
+	// Head can delete tasks in their projects
+	// Others can only delete their own tasks
+	if userRole == models.RoleHead {
+		// Head must be in the project to delete the task
+		if task.ProjectID == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Heads can only delete tasks that belong to a project"})
+			return
+		}
+
+		var userProject models.UserProject
+		err := h.DB.Where("project_id = ? AND user_id = ?", *task.ProjectID, userID.(uint)).First(&userProject).Error
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only delete tasks in projects you're a member of"})
+			return
+		}
+
+		// Head has permission - proceed with deletion
+		if err := h.DB.Delete(&task).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete task"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Task deleted successfully"})
+		return
+	}
+
+	// For non-Head roles, use the existing service method (checks ownership)
 	taskService := services.NewTaskService(h.DB)
 	err = taskService.DeleteTask(uint(taskID), userID.(uint))
 	if err != nil {
@@ -700,7 +753,7 @@ func (h *TaskHandler) DeleteTask(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Task deleted successfully"})
 }
 
-// DeleteCollaborativeTask deletes a collaborative task (only by owner)
+// DeleteCollaborativeTask deletes a collaborative task (only by owner or Head in project)
 func (h *TaskHandler) DeleteCollaborativeTask(c *gin.Context) {
 	taskID, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
@@ -709,7 +762,43 @@ func (h *TaskHandler) DeleteCollaborativeTask(c *gin.Context) {
 	}
 
 	userID, _ := c.Get("userID")
+	userRole, _ := c.Get("userRole")
 
+	// Get the task to check project membership for Heads
+	var task models.CollaborativeTask
+	if err := h.DB.First(&task, taskID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Collaborative task not found"})
+		return
+	}
+
+	// Admin/Manager can delete any task
+	// Head can delete tasks in their projects
+	// Others can only delete their own tasks
+	if userRole == models.RoleHead {
+		// Head must be in the project to delete the task
+		if task.ProjectID == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Heads can only delete tasks that belong to a project"})
+			return
+		}
+
+		var userProject models.UserProject
+		err := h.DB.Where("project_id = ? AND user_id = ?", *task.ProjectID, userID.(uint)).First(&userProject).Error
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only delete tasks in projects you're a member of"})
+			return
+		}
+
+		// Head has permission - proceed with deletion
+		if err := h.DB.Delete(&task).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete collaborative task"})
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{"message": "Collaborative task deleted successfully"})
+		return
+	}
+
+	// For non-Head roles, use the existing service method (checks ownership)
 	taskService := services.NewTaskService(h.DB)
 	err = taskService.DeleteCollaborativeTask(uint(taskID), userID.(uint))
 	if err != nil {
@@ -937,12 +1026,28 @@ func (h *TaskHandler) UpdateTask(c *gin.Context) {
 	oldDescription := task.Description
 	oldDueDate := task.DueDate
 
-	// Check permissions: Only Admin/Manager can update task fields
-	// Task assignees can only update status, not other fields
-	// HR cannot update task details
-	if currentUserRole != models.RoleAdmin && currentUserRole != models.RoleManager {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Only Admin/Manager can update task details. Task assignees can only update status."})
+	// Check permissions: Admin/Manager can update any task
+	// Head can update tasks in their projects
+	// Employees and HR cannot update task details
+	if currentUserRole != models.RoleAdmin && currentUserRole != models.RoleManager && currentUserRole != models.RoleHead {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Only Admin/Manager/Head can update task details. Task assignees can only update status."})
 		return
+	}
+
+	// If user is a Head, check if task belongs to a project they're in
+	if currentUserRole == models.RoleHead {
+		if task.ProjectID == nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "Heads can only edit tasks that belong to a project"})
+			return
+		}
+
+		// Check if the Head is a member of the project
+		var userProject models.UserProject
+		err := h.DB.Where("project_id = ? AND user_id = ?", *task.ProjectID, currentUserID.(uint)).First(&userProject).Error
+		if err != nil {
+			c.JSON(http.StatusForbidden, gin.H{"error": "You can only edit tasks in projects you're a member of"})
+			return
+		}
 	}
 
 	// Update the task
@@ -2459,4 +2564,211 @@ func (h *TaskHandler) GetTaskTimeAnalysis(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// GetDepartmentAnalytics returns department analytics
+func (h *TaskHandler) GetDepartmentAnalytics(c *gin.Context) {
+	department := c.Query("department") // Empty or "all" for all departments
+	period := c.Query("period")
+	if period == "" {
+		period = "monthly" // Default to monthly
+	}
+
+	taskService := services.NewTaskService(h.DB)
+	analytics, err := taskService.GetDepartmentAnalytics(department, period)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch department analytics"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"analytics": analytics})
+}
+
+// GetTaskCompletionTrends returns task completion trends
+func (h *TaskHandler) GetTaskCompletionTrends(c *gin.Context) {
+	// Parse date range
+	startDateStr := c.Query("start_date")
+	endDateStr := c.Query("end_date")
+	groupBy := c.Query("group_by") // day, week, month
+
+	var startDate, endDate time.Time
+	var err error
+
+	if startDateStr == "" {
+		startDate = time.Now().AddDate(0, -3, 0) // Default: 3 months ago
+	} else {
+		startDate, err = time.Parse("2006-01-02", startDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid start_date format. Use YYYY-MM-DD"})
+			return
+		}
+	}
+
+	if endDateStr == "" {
+		endDate = time.Now() // Default: now
+	} else {
+		endDate, err = time.Parse("2006-01-02", endDateStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid end_date format. Use YYYY-MM-DD"})
+			return
+		}
+	}
+
+	taskService := services.NewTaskService(h.DB)
+	trends, err := taskService.GetTaskCompletionTrends(startDate, endDate, groupBy)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch trends"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"trends": trends})
+}
+
+// GetAdvancedAnalytics returns analytics with combined filters
+func (h *TaskHandler) GetAdvancedAnalytics(c *gin.Context) {
+	filters := make(map[string]interface{})
+
+	// Parse filters from query parameters
+	if userIDStr := c.Query("user_id"); userIDStr != "" {
+		if userID, err := strconv.ParseUint(userIDStr, 10, 32); err == nil {
+			filters["user_id"] = uint(userID)
+		}
+	}
+
+	if projectIDStr := c.Query("project_id"); projectIDStr != "" {
+		if projectID, err := strconv.ParseUint(projectIDStr, 10, 32); err == nil {
+			filters["project_id"] = uint(projectID)
+		}
+	}
+
+	if department := c.Query("department"); department != "" {
+		filters["department"] = department
+	}
+
+	if startDateStr := c.Query("start_date"); startDateStr != "" {
+		if startDate, err := time.Parse("2006-01-02", startDateStr); err == nil {
+			filters["start_date"] = startDate
+		}
+	}
+
+	if endDateStr := c.Query("end_date"); endDateStr != "" {
+		if endDate, err := time.Parse("2006-01-02", endDateStr); err == nil {
+			filters["end_date"] = endDate
+		}
+	}
+
+	if status := c.Query("status"); status != "" {
+		filters["status"] = status
+	}
+
+	taskService := services.NewTaskService(h.DB)
+	analytics, err := taskService.GetAdvancedAnalytics(filters)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch analytics"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"analytics": analytics})
+}
+
+// ExportReport exports analytics/report data in various formats
+func (h *TaskHandler) ExportReport(c *gin.Context) {
+	reportType := c.Query("type") // "user", "project", "department", "trends"
+	format := c.Query("format")   // "json", "csv"
+	reportID := c.Query("id")     // user_id, project_id, etc.
+
+	if format == "" {
+		format = "json" // Default
+	}
+
+	var data map[string]interface{}
+	var err error
+
+	switch reportType {
+	case "user":
+		userID, _ := strconv.ParseUint(reportID, 10, 32)
+		period := c.Query("period")
+		if period == "" {
+			period = "monthly"
+		}
+		taskService := services.NewTaskService(h.DB)
+		data, err = taskService.GetUserReport(uint(userID), period)
+	case "project":
+		projectID, _ := strconv.ParseUint(reportID, 10, 32)
+		period := c.Query("period")
+		if period == "" {
+			period = "monthly"
+		}
+		taskService := services.NewTaskService(h.DB)
+		data, err = taskService.GetProjectReport(uint(projectID), period)
+	case "department":
+		department := reportID
+		period := c.Query("period")
+		if period == "" {
+			period = "monthly"
+		}
+		taskService := services.NewTaskService(h.DB)
+		data, err = taskService.GetDepartmentAnalytics(department, period)
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid report type. Use 'user', 'project', or 'department'"})
+		return
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate report"})
+		return
+	}
+
+	// Export based on format
+	switch format {
+	case "json":
+		c.Header("Content-Type", "application/json")
+		c.Header("Content-Disposition", `attachment; filename="report.json"`)
+		c.JSON(http.StatusOK, data)
+	case "csv":
+		csvData := convertToCSV(data)
+		c.Header("Content-Type", "text/csv")
+		c.Header("Content-Disposition", `attachment; filename="report.csv"`)
+		c.Data(http.StatusOK, "text/csv", []byte(csvData))
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid format. Use 'json' or 'csv'"})
+	}
+}
+
+// Helper to convert data to CSV (simplified)
+func convertToCSV(data map[string]interface{}) string {
+	var csv strings.Builder
+	csv.WriteString("Key,Value\n")
+
+	// Flatten the map and write to CSV
+	flattenMapToCSV(data, "", &csv)
+
+	return csv.String()
+}
+
+// Helper to flatten nested maps for CSV
+func flattenMapToCSV(data interface{}, prefix string, csv *strings.Builder) {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		for key, value := range v {
+			fullKey := key
+			if prefix != "" {
+				fullKey = prefix + "." + key
+			}
+			flattenMapToCSV(value, fullKey, csv)
+		}
+	case []interface{}:
+		for i, item := range v {
+			fullKey := prefix + "[" + strconv.Itoa(i) + "]"
+			flattenMapToCSV(item, fullKey, csv)
+		}
+	default:
+		// Write the key-value pair
+		valueStr := fmt.Sprintf("%v", v)
+		// Escape commas and quotes in CSV
+		if strings.Contains(valueStr, ",") || strings.Contains(valueStr, "\"") {
+			valueStr = "\"" + strings.ReplaceAll(valueStr, "\"", "\"\"") + "\""
+		}
+		csv.WriteString(fmt.Sprintf("%s,%s\n", prefix, valueStr))
+	}
 }
